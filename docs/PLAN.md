@@ -156,21 +156,21 @@ timeout and retries with backoff; a member that keeps failing is marked
 
 ---
 
-## 3. MVP scope (this PR)
+## 3. MVP scope (delivered in the first PR)
 
 - [x] Plan (this doc)
-- [ ] Shared types, config loader with validation and sane defaults
-- [ ] Adapters: mock, openai-compatible, anthropic, gemini, cli
-- [ ] Orchestrator with the full protocol, consensus maths, interjections,
+- [x] Shared types, config loader with validation and sane defaults
+- [x] Adapters: mock, openai-compatible, anthropic, gemini, cli
+- [x] Orchestrator with the full protocol, consensus maths, interjections,
       pause/resume/abort, approval gate, amendments
-- [ ] Event bus, hash-chained audit log with verify, session store, memory
-- [ ] Executor: git worktrees, allowlisted CLI runner, verifier, reviewer
-- [ ] HTTP API + SSE, optional token auth
-- [ ] Futuristic UI: hemicycle, live chamber, scoreboard, consensus meter,
+- [x] Event bus, hash-chained audit log with verify, session store, memory
+- [x] Executor: git worktrees, allowlisted CLI runner, verifier, reviewer
+- [x] HTTP API + SSE, optional token auth
+- [x] Futuristic UI: hemicycle, live chamber, scoreboard, consensus meter,
       approval gate, execution monitor, audit view, new-motion form
-- [ ] Tests: consensus, JSON parsing, audit chain + tamper detection,
+- [x] Tests: consensus, JSON parsing, audit chain + tamper detection,
       orchestrator end-to-end with mock, approval gating, API smoke test
-- [ ] README with quick start and adapter config examples; CI workflow
+- [x] README with quick start and adapter config examples; CI workflow
 
 ## 4. Milestones after the MVP
 

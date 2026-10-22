@@ -1,0 +1,69 @@
+{
+  "server": { "host": "127.0.0.1", "port": 7420 },
+  "dataDir": ".cortex",
+  "members": [
+    {
+      "id": "gpt",
+      "name": "ChatGPT",
+      "roles": ["strategist"],
+      "persona": "Big-picture strategist. Optimizes for simplicity and user value.",
+      "adapter": { "type": "openai", "model": "gpt-5", "apiKeyEnv": "OPENAI_API_KEY" }
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini",
+      "roles": ["researcher", "skeptic"],
+      "persona": "Researcher and skeptic. Challenges assumptions with evidence.",
+      "adapter": { "type": "gemini", "model": "gemini-2.5-pro", "apiKeyEnv": "GEMINI_API_KEY" }
+    },
+    {
+      "id": "claude",
+      "name": "Claude",
+      "roles": ["speaker", "reviewer"],
+      "persona": "Impartial speaker and careful reviewer.",
+      "adapter": { "type": "anthropic", "model": "claude-opus-5-5", "apiKeyEnv": "ANTHROPIC_API_KEY" }
+    },
+    {
+      "id": "local",
+      "name": "Local Llama",
+      "roles": ["security"],
+      "persona": "Security reviewer running fully offline.",
+      "adapter": { "type": "openai", "baseUrl": "http://localhost:11434/v1", "model": "llama3.1:8b" }
+    },
+    {
+      "id": "claude-code",
+      "name": "Claude Code",
+      "roles": ["engineer", "executor"],
+      "persona": "Hands-on engineer that implements approved tasks.",
+      "canExecute": true,
+      "adapter": { "type": "cli", "command": "claude", "args": ["-p", "{prompt}", "--permission-mode", "acceptEdits"], "timeoutMs": 900000 }
+    },
+    {
+      "id": "opencode",
+      "name": "OpenCode",
+      "roles": ["engineer", "executor"],
+      "canExecute": true,
+      "adapter": { "type": "cli", "command": "opencode", "args": ["run", "{prompt}"], "timeoutMs": 900000 }
+    }
+  ],
+  "committees": [
+    { "id": "full", "name": "Full Parliament", "description": "Every model deliberates.", "members": ["gpt", "gemini", "claude", "local"] },
+    { "id": "engineering", "name": "Engineering Committee", "description": "Design and implementation.", "members": ["gpt", "claude", "claude-code"] },
+    { "id": "security", "name": "Security Review Board", "description": "Threat modelling.", "members": ["local", "gemini", "claude"] }
+  ],
+  "defaults": {
+    "speaker": "claude",
+    "reviewer": "gemini",
+    "maxRounds": 2,
+    "consensusThreshold": 0.75,
+    "concurrency": 4,
+    "timeoutMs": 180000,
+    "retries": 1
+  },
+  "execution": {
+    "workspace": "/path/to/your/git/repo",
+    "allowedCommands": ["git", "npm", "node", "claude", "opencode"],
+    "testCommand": ["npm", "test"],
+    "timeoutMs": 900000
+  }
+}

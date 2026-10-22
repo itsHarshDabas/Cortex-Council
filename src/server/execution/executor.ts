@@ -81,7 +81,7 @@ export class ExecutionService {
           system: systemPrompt(reviewer),
           prompt: reviewPrompt(session, task, result, diff),
           signal,
-          meta: { phase: "verification", memberId: reviewer.id, roles: reviewer.roles, round: session.round, task: session.task, testsPassed },
+          meta: { phase: "verification", memberId: reviewer.id, title: session.title, roles: reviewer.roles, round: session.round, task: session.task, testsPassed },
         });
         const j = extractJson<Record<string, unknown>>(res.text) ?? {};
         const verdict = asString(j.verdict);

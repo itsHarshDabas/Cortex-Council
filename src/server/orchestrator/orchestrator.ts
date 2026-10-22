@@ -93,8 +93,8 @@ export class Orchestrator {
   // ---- main loop ----------------------------------------------------------
 
   async run(): Promise<void> {
-    const s = this.session;
-    try {
+    await this.guarded(async () => {
+      const s = this.session;
       this.recalled = this.deps.memory.recall(`${s.title} ${s.task}`);
       await this.proposalPhase();
 
@@ -107,32 +107,51 @@ export class Orchestrator {
         if (consensusReached) break;
       }
       await this.synthesisPhase(consensusReached);
+      await this.approvalAndExecution();
+    });
+  }
 
-      // Approval gate: nothing executes without an explicit approve.
-      for (;;) {
-        const decision = await this.awaitDecision();
-        if (decision.kind === "reject") {
-          if (this.ctrl.signal.aborted) throw new AbortedError();
-          this.emit({ type: "architect.rejected", actor: "architect", phase: "approval", text: decision.reason ?? "Plan rejected." });
-          this.setStatus("rejected");
-          return;
-        }
-        if (decision.kind === "approve") {
-          this.emit({ type: "architect.approved", actor: "architect", phase: "approval", text: decision.note ?? "Plan approved." });
-          this.rememberDecision();
-          break;
-        }
-        // Amendment: binding instruction, then revise → vote → re-synthesize.
-        s.interjections.push({ at: now(), text: `Amendment: ${decision.text}` });
-        this.emit({ type: "architect.amended", actor: "architect", phase: "approval", text: decision.text });
-        this.setStatus("deliberating");
-        s.round += 1;
-        await this.revisionPhase();
-        const reached = await this.votePhase();
-        await this.synthesisPhase(reached);
+  /** Re-attach to a session that was parked at the approval gate before a restart. */
+  async resumeAtGate(): Promise<void> {
+    await this.guarded(async () => {
+      const s = this.session;
+      this.recalled = this.deps.memory.recall(`${s.title} ${s.task}`);
+      await this.approvalAndExecution();
+    });
+  }
+
+  private async approvalAndExecution(): Promise<void> {
+    const s = this.session;
+    // Approval gate: nothing executes without an explicit approve.
+    for (;;) {
+      const decision = await this.awaitDecision();
+      if (decision.kind === "reject") {
+        if (this.ctrl.signal.aborted) throw new AbortedError();
+        this.emit({ type: "architect.rejected", actor: "architect", phase: "approval", text: decision.reason ?? "Plan rejected." });
+        this.setStatus("rejected");
+        return;
       }
+      if (decision.kind === "approve") {
+        this.emit({ type: "architect.approved", actor: "architect", phase: "approval", text: decision.note ?? "Plan approved." });
+        this.rememberDecision();
+        break;
+      }
+      // Amendment: binding instruction, then revise → vote → re-synthesize.
+      s.interjections.push({ at: now(), text: `Amendment: ${decision.text}` });
+      this.emit({ type: "architect.amended", actor: "architect", phase: "approval", text: decision.text });
+      this.setStatus("deliberating");
+      s.round += 1;
+      await this.revisionPhase();
+      const reached = await this.votePhase();
+      await this.synthesisPhase(reached);
+    }
+    await this.executionPhase();
+  }
 
-      await this.executionPhase();
+  private async guarded(fn: () => Promise<void>): Promise<void> {
+    const s = this.session;
+    try {
+      await fn();
     } catch (err) {
       if (err instanceof AbortedError || this.ctrl.signal.aborted) {
         this.setStatus("aborted");
@@ -184,7 +203,7 @@ export class Orchestrator {
           type: "critique.submitted",
           actor: m.id,
           phase: "critique",
-          text: `→ ${c.target}: ${c.weaknesses[0] ?? "no major weaknesses"}`,
+          text: `→ ${this.nameOf(c.target)}: ${c.weaknesses[0] ?? "no major weaknesses"}`,
           data: c,
         });
       }
@@ -233,7 +252,7 @@ export class Orchestrator {
         type: "ballot.cast",
         actor: m.id,
         phase: "vote",
-        text: top ? `Backs ${top[0]} (${top[1].score}/10)${b.objections.length ? ` · objects: ${b.objections[0]}` : ""}` : "Abstains.",
+        text: top ? `Backs ${this.nameOf(top[0])} (${top[1].score}/10)${b.objections.length ? ` · objects: ${b.objections[0]}` : ""}` : "Abstains.",
         data: b,
       });
     });
@@ -246,8 +265,8 @@ export class Orchestrator {
       actor: "system",
       phase: "vote",
       text: result.reached
-        ? `Consensus reached on ${result.winner} (agreement ${(result.agreement * 100).toFixed(0)}%).`
-        : `No consensus yet: leader ${result.winner ?? "none"}, agreement ${(result.agreement * 100).toFixed(0)}%${
+        ? `Consensus reached on ${this.nameOf(result.winner ?? "")}'s proposal (agreement ${(result.agreement * 100).toFixed(0)}%).`
+        : `No consensus yet: leader ${result.winner ? this.nameOf(result.winner) : "none"}, agreement ${(result.agreement * 100).toFixed(0)}%${
             result.blockingObjections.length ? `, ${result.blockingObjections.length} objection(s)` : ""
           }.`,
       data: result,
@@ -329,6 +348,10 @@ export class Orchestrator {
     return this.session.members.map((id) => this.member(id)).filter((m): m is MemberConfig => Boolean(m));
   }
 
+  private nameOf(id: string): string {
+    return this.member(id)?.name ?? id;
+  }
+
   private member(id: string): MemberConfig | undefined {
     return this.deps.cfg.members.find((m) => m.id === id);
   }
@@ -337,7 +360,7 @@ export class Orchestrator {
     await this.checkpoint();
     const s = this.session;
     this.emit({ type: "member.thinking", actor: m.id, phase });
-    const meta: PromptMeta = { phase, memberId: m.id, roles: m.roles, persona: m.persona, round: s.round, task: s.task, ...extra };
+    const meta: PromptMeta = { phase, memberId: m.id, title: s.title, roles: m.roles, persona: m.persona, round: s.round, task: s.task, ...extra };
     try {
       const { defaults } = this.deps.cfg;
       const res = await withRetry(

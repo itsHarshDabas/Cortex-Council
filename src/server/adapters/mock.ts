@@ -77,8 +77,8 @@ function rand(...parts: (string | number)[]): number {
 const pick = <T>(arr: T[], ...seed: (string | number)[]): T => arr[Math.floor(rand(...seed) * arr.length) % arr.length]!;
 
 const subject = (task: string) => {
-  const t = task.trim().replace(/\s+/g, " ");
-  return t.length > 70 ? t.slice(0, 67) + "..." : t;
+  const t = (task.trim().split(/(?<=[.!?])\s/)[0] ?? task).replace(/\s+/g, " ").replace(/[.!?]$/, "");
+  return t.length > 90 ? t.slice(0, 87) + "..." : t;
 };
 
 const lens: Record<string, { angle: string; steps: [string, string][]; risks: string[] }> = {
@@ -111,6 +111,16 @@ const lens: Record<string, { angle: string; steps: [string, string][]; risks: st
       ["Document usage", "Update README and inline docs for the new behaviour."],
     ],
     risks: ["Hidden coupling with existing modules", "Flaky tests masking regressions"],
+  },
+  reviewer: {
+    angle: "Make every step independently verifiable before anything ships.",
+    steps: [
+      ["Write acceptance criteria", "Turn the task into checks a reviewer can run without the author present."],
+      ["Implement in reviewable slices", "Keep each change small enough to review in one sitting."],
+      ["Verify against the criteria", "Run the checks, record evidence, and block on any failure."],
+      ["Publish a short report", "Summarize what changed, what was verified and what remains open."],
+    ],
+    risks: ["Reviews that rubber-stamp", "Acceptance criteria written after the fact"],
   },
   security: {
     angle: "Least privilege, validated inputs, auditable actions.",
@@ -211,8 +221,8 @@ function synthesis(m: PromptMeta) {
   const executors = m.executors?.length ? m.executors : [m.memberId];
   const steps = (w?.steps ?? []).slice(0, 3);
   return {
-    title: `Plan: ${subject(m.task)}`,
-    rationale: `Built on ${w?.author ?? "the leading"} proposal, which scored highest after revision, with critiques from the chamber folded in.`,
+    title: m.title ?? `Plan: ${subject(m.task)}`,
+    rationale: `Built on the ${w?.author ?? "leading"} proposal, which scored highest after revision, with critiques from the chamber folded in.`,
     tasks: steps.map((s, i) => ({
       id: `t${i + 1}`,
       title: s.title,

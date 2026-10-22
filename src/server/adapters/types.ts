@@ -7,6 +7,7 @@ export interface PromptMeta {
   roles: string[];
   persona?: string;
   round: number;
+  title?: string;
   task: string;
   target?: Proposal;
   ownProposal?: Proposal;

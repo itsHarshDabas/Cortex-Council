@@ -9,7 +9,19 @@ export class SessionManager {
   private readonly running = new Map<string, Orchestrator>();
   private readonly done = new Map<string, Promise<void>>();
 
-  constructor(private readonly deps: OrchestratorDeps) {}
+  constructor(private readonly deps: OrchestratorDeps) {
+    // Sessions parked at the approval gate survive restarts: re-attach an orchestrator to each.
+    for (const summary of deps.store.list()) {
+      const s = deps.store.get(summary.id);
+      if (s?.status === "awaiting_approval" && s.plan) this.start(new Orchestrator(s, deps), (o) => o.resumeAtGate());
+    }
+  }
+
+  private start(orch: Orchestrator, run: (o: Orchestrator) => Promise<void>): void {
+    const id = orch.session.id;
+    this.running.set(id, orch);
+    this.done.set(id, run(orch).finally(() => this.running.delete(id)));
+  }
 
   /** Role-based routing: explicit members, else a committee, else the full parliament. */
   resolveMembers(req: CreateSessionRequest): string[] {
@@ -73,10 +85,7 @@ export class SessionManager {
       text: title,
       data: { task, members, maxRounds, consensusThreshold: threshold },
     });
-    const orch = new Orchestrator(session, this.deps);
-    this.running.set(session.id, orch);
-    const p = orch.run().finally(() => this.running.delete(session.id));
-    this.done.set(session.id, p);
+    this.start(new Orchestrator(session, this.deps), (o) => o.run());
     return session;
   }
 
