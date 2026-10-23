@@ -30,6 +30,31 @@ For development (hot reload for server and UI): `npm run dev`, then open http://
 
 Requirements: Node 22+, git.
 
+### One-click gateway (Windows, macOS, Linux)
+
+The gateway starts the local server if it isn't already running, then opens it in a browser tab.
+On first run from a fresh clone it also runs `npm ci` and `npm run build` for you.
+
+| | How |
+|---|---|
+| Windows | Double-click `launchers\Cortex Council.cmd`. Close its window to stop the council. |
+| macOS | Double-click `launchers/Cortex Council.command` (first time: right-click → Open). |
+| Linux / any terminal | `npm run open`, or `npm link` once and then just `cortex-council` from anywhere. |
+
+```bash
+cortex-council                 # start if needed, open the browser; Ctrl+C stops it
+cortex-council --detach        # keep it running in the background (log: .cortex/gateway.log)
+cortex-council stop | status   # stop a --detach server / check it
+cortex-council --port 7500     # another port (default: server.port in cortex.config.json, else 7420)
+```
+
+If something else already holds the port, the gateway says so instead of opening the wrong app.
+Config, `.env` and data stay in the checkout, as with `npm start`. A read-only install (a system
+package, say) keeps them per user instead: `~/.local/share/cortex-council` on Linux,
+`~/Library/Application Support/cortex-council` on macOS, `%APPDATA%\cortex-council` on Windows.
+Set `CORTEX_HOME` to choose the folder yourself. Other apps can embed the same entry point:
+[Grace Candyland](https://github.com/itsHarshDabas/grace-candyland) does, through `grace-cortex`.
+
 ## What you can do
 
 | As the Architect you can… | How |
@@ -122,6 +147,8 @@ src/server/execution/        allowlisted runner, git worktrees, execution + revi
 src/server/core/             event bus, hash-chained audit log, session store, project memory
 src/server/http/             node:http API + SSE
 web/                         React UI (Vite)
+bin/, scripts/gateway.mjs    the cross-platform `cortex-council` gateway
+launchers/                   double-click launchers for Windows and macOS
 tests/                       Vitest suite (protocol, gate, worktrees, audit, API, security)
 docs/PLAN.md                 architecture, MVP scope and roadmap
 ```
@@ -129,7 +156,7 @@ docs/PLAN.md                 architecture, MVP scope and roadmap
 ## Development
 
 ```bash
-npm test           # 39 tests, ~3s, no network
+npm test           # 48 tests, ~3s, no network
 npm run typecheck
 npm run dev
 ```
