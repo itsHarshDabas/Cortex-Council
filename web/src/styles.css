@@ -107,6 +107,7 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
 }
 input[type="checkbox"],
+input[type="radio"],
 input[type="range"] {
   width: auto;
   accent-color: var(--accent);
@@ -1150,5 +1151,119 @@ input[type="range"] {
   }
   .session-title {
     display: none;
+  }
+}
+
+/* ---- API providers ------------------------------------------------------ */
+
+.modal.wide {
+  width: min(820px, 100%);
+}
+.modal h3 {
+  margin: 4px 0 0;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+.providers,
+.seat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.provider-row,
+.seat-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+.seat-list li {
+  border-left: 3px solid var(--c, var(--accent));
+}
+.provider-row .mono {
+  word-break: break-all;
+}
+.provider-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.provider-actions button {
+  font-size: 12px;
+}
+.key-badge {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  color: var(--muted);
+}
+.key-badge.ok {
+  color: var(--ok);
+  border-color: rgba(52, 211, 153, 0.4);
+}
+.key-badge.bad {
+  color: var(--bad);
+  border-color: rgba(251, 113, 133, 0.4);
+}
+.test-result {
+  margin-top: 6px;
+  font-size: 12px;
+  word-break: break-word;
+}
+.test-result.ok {
+  color: var(--ok);
+}
+.test-result.bad {
+  color: var(--bad);
+}
+.subform {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(56, 189, 248, 0.04);
+}
+.key-source {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.key-source legend,
+.field-label {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.modal .key-source label {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+}
+@media (max-width: 640px) {
+  .provider-row,
+  .seat-list li {
+    flex-direction: column;
+  }
+  .provider-actions {
+    justify-content: flex-start;
+  }
+  .checks {
+    grid-template-columns: 1fr;
   }
 }

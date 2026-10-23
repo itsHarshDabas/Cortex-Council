@@ -2,10 +2,11 @@ import { timingSafeEqual } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
+import { PROVIDER_PRESETS } from "../../shared/providers.ts";
 import type { CouncilEvent, MemberInfo } from "../../shared/types.ts";
 import type { App } from "../app.ts";
 import { commandOf } from "../config.ts";
-import { ValidationError } from "../orchestrator/sessionManager.ts";
+import { ConflictError, ValidationError } from "../orchestrator/sessionManager.ts";
 
 const MAX_BODY = 1_000_000;
 const MIME: Record<string, string> = {
@@ -54,6 +55,7 @@ export function createHttpServer(app: App, opts: ServerOptions = {}): Server {
       roles: m.roles,
       color: m.color ?? "#38bdf8",
       canExecute: Boolean(m.canExecute),
+      ...(m.adapter.type === "provider" ? { provider: m.adapter.provider, managed: Boolean(app.providerStore.getSeat(m.id)) } : {}),
     }));
 
   const session = (id: string) => {
@@ -70,6 +72,22 @@ export function createHttpServer(app: App, opts: ServerOptions = {}): Server {
     execution: { workspace: app.executor.worktrees.repo, testCommand: app.cfg.execution.testCommand },
   }));
   route("GET", "/api/adapters/health", () => app.adapters.health());
+
+  // API providers and the members seated on them, managed from the UI. Keys are write-only.
+  route("GET", "/api/providers", () => ({ providers: app.providers.list(), seats: app.providers.seats(), presets: PROVIDER_PRESETS }));
+  route("POST", "/api/providers", ({ body, res }) => {
+    res.statusCode = 201;
+    return app.providers.create(body ?? {});
+  });
+  route("POST", "/api/providers/test", ({ body }) => app.providers.test(body ?? {}));
+  route("PUT", "/api/providers/:id", ({ params, body }) => app.providers.update(params[0]!, body ?? {}));
+  route("DELETE", "/api/providers/:id", ({ params }) => (app.providers.remove(params[0]!), { ok: true }));
+  route("POST", "/api/seats", ({ body, res }) => {
+    res.statusCode = 201;
+    return app.providers.seat(body ?? {});
+  });
+  route("PUT", "/api/seats/:id", ({ params, body }) => app.providers.updateSeat(params[0]!, body ?? {}));
+  route("DELETE", "/api/seats/:id", ({ params }) => (app.providers.unseat(params[0]!), { ok: true }));
 
   route("GET", "/api/sessions", () => app.store.list());
   route("POST", "/api/sessions", ({ body, res }) => {
@@ -128,7 +146,7 @@ export function createHttpServer(app: App, opts: ServerOptions = {}): Server {
         if (url.pathname === "/api/stream" && req.method === "GET") return stream(app, req, res, url);
         const match = findRoute(routes, req.method ?? "GET", url.pathname);
         if (!match) throw new HttpError(404, "Not found.");
-        const body = req.method === "POST" ? await readJson(req) : undefined;
+        const body = req.method === "POST" || req.method === "PUT" ? await readJson(req) : undefined;
         const out = await match.route.handler({ req, res, params: match.params, url, body });
         return sendJson(res, res.statusCode || 200, out);
       }
@@ -136,7 +154,7 @@ export function createHttpServer(app: App, opts: ServerOptions = {}): Server {
       res.writeHead(200, { "content-type": "text/plain" });
       res.end("Cortex Council API is running. Start the UI with `npm run dev` or build it with `npm run build`.");
     } catch (err) {
-      const status = err instanceof HttpError ? err.status : err instanceof ValidationError ? 400 : 500;
+      const status = err instanceof HttpError ? err.status : err instanceof ConflictError ? 409 : err instanceof ValidationError ? 400 : 500;
       if (status === 500) console.error(err);
       sendJson(res, status, { error: status === 500 ? "Internal error." : (err as Error).message });
     }
@@ -154,7 +172,7 @@ function guard(req: IncomingMessage, url: URL, token?: string) {
     const o = new URL(origin);
     if (o.host !== req.headers.host && !["localhost", "127.0.0.1"].includes(o.hostname)) throw new HttpError(403, "Cross-origin request refused.");
   }
-  if (req.method === "POST" && !(req.headers["content-type"] ?? "").includes("application/json")) {
+  if ((req.method === "POST" || req.method === "PUT") && !(req.headers["content-type"] ?? "").includes("application/json")) {
     throw new HttpError(415, "Content-Type must be application/json.");
   }
   if (token) {

@@ -63,6 +63,27 @@ Fault tolerance: per-call timeouts and retries; a member that keeps failing is m
 debate continues while a quorum of 2 remains; if the Speaker fails, the plan is built from the winning
 proposal; a server restart keeps sessions that were waiting for approval.
 
+## Adding API providers from the UI
+
+Click **+ API providers** next to *Members*. Pick a preset (OpenAI, Anthropic, Gemini, OpenRouter, Groq,
+DeepSeek, Mistral, xAI, Together, Ollama, LM Studio) or **Custom endpoint** for any OpenAI-compatible URL.
+**Test connection** lists the provider's models, which checks the URL and key and fills the model picker.
+Then **Seat model**: pick the model, a name, roles and committees. The member joins the council at once,
+with no restart. Edit or unseat members and rotate keys the same way.
+
+Keys are write-only:
+
+- **Environment variable (recommended):** you give Cortex a name like `GROQ_API_KEY`, and the key never touches disk.
+  Put it in `.env` and restart.
+- **Paste key:** stored in `<dataDir>/secrets.json` with owner-only permissions (0600), next to a `.gitignore`
+  that keeps the whole data dir out of git. It is never returned by the API, written to the audit log or
+  shown in events, and it is deleted when you remove the provider or switch it to an env var.
+  On Windows the file permissions are not enforced, so prefer env vars there.
+
+UI-managed providers and seats live in `<dataDir>/providers.json`. A member in `cortex.config.json` can
+use one too: `{ "type": "provider", "provider": "groq", "model": "llama-3.3-70b-versatile" }`. API seats
+debate but never execute; seat a CLI agent as the executor.
+
 ## Connecting real models and agents
 
 Copy `cortex.config.example.json` to `cortex.config.json` and edit. API keys are referenced by env var
@@ -97,7 +118,8 @@ Adding a provider is one file implementing `ModelAdapter` in `src/server/adapter
   Nothing is merged or pushed for you.
 - Commands are spawned without a shell from an allowlist (`execution.allowedCommands`); model output is
   only ever passed as a single argument, never interpreted.
-- API keys come from env and are redacted from the audit log and live events.
+- API keys come from env, or from an owner-only `secrets.json` when pasted in the UI. Either way they are
+  write-only over the API and redacted from the audit log and live events.
 - Audit log is append-only and hash-chained; `GET /api/audit/verify` detects edits, deletions and reordering.
 
 ## API
@@ -106,6 +128,11 @@ Adding a provider is one file implementing `ModelAdapter` in `src/server/adapter
 |---|---|---|
 | GET | `/api/council` | members, committees, defaults |
 | GET | `/api/adapters/health` | per-member adapter health |
+| GET/POST | `/api/providers` | list providers, seats and presets / add a provider (`{name, kind, baseUrl?, keySource, apiKeyEnv?, apiKey?}`) |
+| PUT/DELETE | `/api/providers/:id` | edit (omit `apiKey` to keep the stored key) / remove (409 while members are seated) |
+| POST | `/api/providers/test` | list models for a draft or saved (`{id}`) provider |
+| POST | `/api/seats` | seat a model (`{name, provider, model, roles, committees?, persona?, temperature?, maxTokens?}`) |
+| PUT/DELETE | `/api/seats/:id` | edit / unseat a UI-managed member |
 | GET/POST | `/api/sessions` | list / create (`{title, task, committee?, members?, maxRounds?, consensusThreshold?}`) |
 | GET | `/api/sessions/:id` | full session state |
 | POST | `/api/sessions/:id/{interject,pause,resume,abort}` | Architect controls |

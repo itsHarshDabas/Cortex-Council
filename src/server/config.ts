@@ -38,7 +38,9 @@ export type AdapterConfig =
       promptVia?: "arg" | "stdin";
       timeoutMs?: number;
     }
-  | AgentCliConfig;
+  | AgentCliConfig
+  /** A provider managed from the UI (<dataDir>/providers.json); its URL and key are resolved at runtime. */
+  | { type: "provider"; provider: string; model: string; temperature?: number; maxTokens?: number };
 
 export interface MemberConfig {
   id: string;
@@ -74,7 +76,7 @@ export interface CortexConfig {
   };
 }
 
-const palette = ["#38bdf8", "#f472b6", "#a78bfa", "#34d399", "#fbbf24", "#fb7185", "#22d3ee", "#c084fc"];
+export const palette = ["#38bdf8", "#f472b6", "#a78bfa", "#34d399", "#fbbf24", "#fb7185", "#22d3ee", "#c084fc"];
 
 export const defaultConfig = (): CortexConfig => ({
   server: { host: "127.0.0.1", port: 7420 },
@@ -200,7 +202,7 @@ export function validateConfig(cfg: CortexConfig): void {
     if (ids.has(m.id)) throw new ConfigError(`Duplicate member id "${m.id}".`);
     ids.add(m.id);
     if (!m.adapter?.type) throw new ConfigError(`Member "${m.id}" has no adapter.type.`);
-    if (!["mock", "openai", "anthropic", "gemini", "cli", ...AGENT_CLIS].includes(m.adapter.type))
+    if (!["mock", "openai", "anthropic", "gemini", "cli", "provider", ...AGENT_CLIS].includes(m.adapter.type))
       throw new ConfigError(`Member "${m.id}" uses unknown adapter "${m.adapter.type}".`);
     const command = commandOf(m.adapter);
     if (command && !cfg.execution.allowedCommands.includes(basename(command)))
