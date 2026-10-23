@@ -36,6 +36,8 @@ export type AdapterConfig =
       /** Arguments; "{prompt}" is replaced by the prompt text (one argv entry, never shell-parsed). */
       args: string[];
       promptVia?: "arg" | "stdin";
+      /** "stdin": prompts too long for the command line go on stdin (e.g. `claude -p` reads it). */
+      longPromptVia?: "stdin";
       /** Arguments for execute() in a worktree, if they differ from deliberation's (e.g. to allow edits). */
       executeArgs?: string[];
       timeoutMs?: number;
@@ -51,6 +53,8 @@ export interface MemberConfig {
   color?: string;
   persona?: string;
   canExecute?: boolean;
+  /** Time limit for each debate call (proposal, critique, revision, vote). Defaults to defaults.agentTimeoutMs for CLI agents, else defaults.timeoutMs. */
+  timeoutMs?: number;
   adapter: AdapterConfig;
 }
 
@@ -65,7 +69,10 @@ export interface CortexConfig {
     maxRounds: number;
     consensusThreshold: number;
     concurrency: number;
+    /** Per-call debate time limit for API models. */
     timeoutMs: number;
+    /** Per-call debate time limit for CLI agents, which read files and use tools before answering. */
+    agentTimeoutMs: number;
     retries: number;
   };
   execution: {
@@ -98,6 +105,7 @@ export const defaultConfig = (): CortexConfig => ({
     consensusThreshold: 0.75,
     concurrency: 4,
     timeoutMs: 120_000,
+    agentTimeoutMs: 600_000,
     retries: 1,
   },
   execution: {
@@ -109,6 +117,11 @@ export const defaultConfig = (): CortexConfig => ({
 });
 
 export class ConfigError extends Error {}
+
+/** How long one debate call to this member may take. */
+export function debateTimeout(m: MemberConfig, defaults: CortexConfig["defaults"]): number {
+  return m.timeoutMs ?? (commandOf(m.adapter) ? defaults.agentTimeoutMs : defaults.timeoutMs);
+}
 
 /** The executable a member spawns, if any. */
 export function commandOf(a: AdapterConfig): string | undefined {
@@ -160,6 +173,8 @@ export function validateConfig(cfg: CortexConfig): void {
       throw new ConfigError(`Member "${m.id}" runs "${command}", which is not in execution.allowedCommands.`);
     if (m.adapter.type === "freebuff" && m.adapter.args && !m.adapter.args.some((a) => a.includes("{prompt}")))
       throw new ConfigError(`Member "${m.id}": freebuff adapter.args must contain "{prompt}".`);
+    if (m.timeoutMs !== undefined && !(Number.isFinite(m.timeoutMs) && m.timeoutMs >= 1000))
+      throw new ConfigError(`Member "${m.id}": timeoutMs must be at least 1000.`);
     m.color ??= palette[i % palette.length];
     m.roles ??= [];
   });

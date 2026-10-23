@@ -21,7 +21,13 @@ import { AdapterError, type CompletionRequest, type CompletionResult, type Execu
  */
 
 /** Linux caps a single argv entry at 128 KiB; longer prompts go via a file or stdin. */
-export const MAX_ARG_PROMPT = 100_000;
+/**
+ * Longest prompt passed as a command-line argument; longer ones go by file or stdin.
+ * Linux allows 128 KiB per argument, but Windows caps the whole command line at 32,767
+ * UTF-16 units (and quoting can grow it), so stay well under that there.
+ */
+export const argPromptLimit = (platform: NodeJS.Platform = process.platform) => (platform === "win32" ? 8_000 : 100_000);
+export const MAX_ARG_PROMPT = argPromptLimit();
 
 type Mode = "complete" | "execute";
 
@@ -311,8 +317,8 @@ export class AgentCliAdapter implements ModelAdapter {
     return this.preset.headless || (this.cfg.type === "freebuff" && !!this.cfg.args?.length);
   }
 
-  private async invoke(mode: Mode, prompt: string, opts: { cwd?: string; signal?: AbortSignal; onOutput?: (s: string) => void }) {
-    const timeoutMs = this.cfg.timeoutMs ?? this.defaultTimeoutMs;
+  private async invoke(mode: Mode, prompt: string, opts: { cwd?: string; signal?: AbortSignal; onOutput?: (s: string) => void; timeoutMs?: number }) {
+    const timeoutMs = opts.timeoutMs ?? this.cfg.timeoutMs ?? this.defaultTimeoutMs;
     const inv = this.preset.invocation(this.cfg, mode, prompt, opts.cwd, timeoutMs);
     let buf = "";
     const onOutput = opts.onOutput
@@ -351,7 +357,11 @@ export class AgentCliAdapter implements ModelAdapter {
 
   async complete(req: CompletionRequest): Promise<CompletionResult> {
     if (!this.headless) throw new AdapterError(FREEBUFF_NO_HEADLESS);
-    const { res, parsed, timeoutMs } = await this.invoke("complete", `${req.system}\n\n${req.prompt}`, { signal: req.signal });
+    const { res, parsed, timeoutMs } = await this.invoke("complete", `${req.system}\n\n${req.prompt}`, {
+      signal: req.signal,
+      timeoutMs: req.timeoutMs,
+      onOutput: req.onProgress,
+    });
     if (res.exitCode !== 0 || res.timedOut) throw new AdapterError(describeFailure(this.preset.label, res, parsed, timeoutMs));
     if (!parsed.text) throw new AdapterError(`${this.preset.label} returned no answer${parsed.error ? `: ${parsed.error}` : "."}`);
     return { text: parsed.text, usage: parsed.usage };

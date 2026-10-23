@@ -13,6 +13,8 @@ interface Draft {
   persona: string;
   committees: string[];
   canExecute: boolean;
+  /** Minutes per debate call; empty = server default (10). */
+  timeoutMin: string;
 }
 
 /** Seat local coding-agent CLIs (Claude Code, OpenCode, Kilo, Cline, Freebuff) without editing cortex.config.json. */
@@ -54,6 +56,7 @@ export function AgentsModal({ council, onClose, onChanged }: { council: CouncilI
       persona: "",
       committees: council.committees.some((c) => c.id === "engineering") ? ["engineering"] : [],
       canExecute: tool.headless,
+      timeoutMin: "",
     });
 
   const save = async (d: Draft) => {
@@ -65,6 +68,7 @@ export function AgentsModal({ council, onClose, onChanged }: { council: CouncilI
       persona: d.persona || undefined,
       committees: d.committees,
       canExecute: d.canExecute,
+      ...(d.timeoutMin ? { timeoutMs: Math.round(Number(d.timeoutMin) * 60_000) } : {}),
     };
     if (await run(() => api.seatAgent(body))) setDraft(null);
   };
@@ -138,6 +142,7 @@ export function AgentsModal({ council, onClose, onChanged }: { council: CouncilI
                       <div className="small muted">
                         {tools.find((t) => t.id === s.tool)?.name ?? s.tool} · {s.roles.join(", ") || "no roles"}
                         {s.canExecute ? " · can execute" : ""}
+                        {s.timeoutMs ? ` · ${Math.round(s.timeoutMs / 60_000)} min limit` : ""}
                       </div>
                     </div>
                     <div className="provider-actions">
@@ -180,6 +185,18 @@ export function AgentsModal({ council, onClose, onChanged }: { council: CouncilI
                   className="mono"
                   placeholder={draft.tool.modelHint ? `tool default, e.g. ${draft.tool.modelHint}` : "tool default"}
                   disabled={!draft.tool.headless}
+                />
+              </label>
+              <label>
+                Debate time limit (min)
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={draft.timeoutMin}
+                  onChange={(e) => setDraft({ ...draft, timeoutMin: e.target.value })}
+                  placeholder="10"
+                  title="How long each proposal, critique, revision or vote may take before the seat is marked absent"
                 />
               </label>
             </div>

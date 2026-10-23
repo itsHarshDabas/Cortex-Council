@@ -32,7 +32,15 @@ export function agentAdapter(tool: CliTool, model?: string): AdapterConfig {
   if (tool === "claude-code") {
     const m = model ? ["--model", model] : [];
     // Deliberation runs in the server's directory, so it gets no edit permission; execution runs in a worktree.
-    return { type: "cli", command: "claude", args: ["-p", "{prompt}", ...m], executeArgs: ["-p", "{prompt}", ...m, "--permission-mode", "acceptEdits"], timeoutMs: AGENT_TIMEOUT_MS };
+    // Long prompts (vote rounds carry every proposal) go on stdin, which `claude -p` reads.
+    return {
+      type: "cli",
+      command: "claude",
+      args: ["-p", "{prompt}", ...m],
+      executeArgs: ["-p", "{prompt}", ...m, "--permission-mode", "acceptEdits"],
+      longPromptVia: "stdin",
+      timeoutMs: AGENT_TIMEOUT_MS,
+    };
   }
   return { type: tool, ...(model ? { model } : {}), timeoutMs: AGENT_TIMEOUT_MS };
 }
@@ -45,6 +53,7 @@ export function agentToMember(seat: AgentSeatView, index: number): MemberConfig 
     color: seat.color ?? palette[index % palette.length],
     persona: seat.persona,
     canExecute: seat.canExecute,
+    ...(seat.timeoutMs ? { timeoutMs: seat.timeoutMs } : {}),
     adapter: agentAdapter(seat.tool, seat.model),
   };
 }

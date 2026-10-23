@@ -20,10 +20,15 @@ export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+/** 90000 → "90s", 600000 → "10 min". */
+export const formatDuration = (ms: number) =>
+  ms < 1000 ? `${ms}ms` : ms >= 120_000 && ms % 60_000 === 0 ? `${ms / 60_000} min` : `${Math.round(ms / 1000)}s`;
+
 /** Run fn with a per-attempt timeout and exponential backoff between attempts. */
 export async function withRetry<T>(
   fn: (signal: AbortSignal) => Promise<T>,
-  opts: { retries: number; timeoutMs: number; baseDelayMs?: number; signal?: AbortSignal },
+  /** retryOnTimeout: false gives up after a timed-out attempt (a slow agent would just time out again). */
+  opts: { retries: number; timeoutMs: number; baseDelayMs?: number; signal?: AbortSignal; retryOnTimeout?: boolean },
 ): Promise<T> {
   const base = opts.baseDelayMs ?? 500;
   let lastErr: unknown;
@@ -32,12 +37,14 @@ export async function withRetry<T>(
     const ctrl = new AbortController();
     const onAbort = () => ctrl.abort();
     opts.signal?.addEventListener("abort", onAbort, { once: true });
-    const timer = setTimeout(() => ctrl.abort(new Error(`timed out after ${opts.timeoutMs}ms`)), opts.timeoutMs);
+    const timer = setTimeout(() => ctrl.abort(new Error(`timed out after ${formatDuration(opts.timeoutMs)}`)), opts.timeoutMs);
     try {
       return await fn(ctrl.signal);
     } catch (err) {
       if (opts.signal?.aborted) throw new AbortedError();
-      lastErr = ctrl.signal.reason instanceof Error ? ctrl.signal.reason : err;
+      const timedOut = ctrl.signal.reason instanceof Error;
+      lastErr = timedOut ? ctrl.signal.reason : err;
+      if (timedOut && opts.retryOnTimeout === false) break;
       if (attempt < opts.retries) await sleep(base * 2 ** attempt, opts.signal);
     } finally {
       clearTimeout(timer);

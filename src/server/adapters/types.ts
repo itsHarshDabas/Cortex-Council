@@ -23,6 +23,10 @@ export interface CompletionRequest {
   prompt: string;
   signal?: AbortSignal;
   meta: PromptMeta;
+  /** The caller's time budget for this call, so a CLI can stop itself cleanly just before it. */
+  timeoutMs?: number;
+  /** Live progress from agents that stream (tool calls, partial text), for the UI. */
+  onProgress?: (line: string) => void;
 }
 
 export interface CompletionResult {

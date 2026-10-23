@@ -29,7 +29,7 @@ export function useSession(id: string | null) {
       id,
       (e) => {
         if (e.type === "member.thinking") {
-          setThinking((t) => ({ ...t, [e.actor]: e.phase ?? "" }));
+          setThinking((t) => ({ ...t, [e.actor]: e.text ?? e.phase ?? "" }));
           return;
         }
         if (seen.has(e.seq)) return;

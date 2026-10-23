@@ -21,6 +21,8 @@ const initials = (name: string) =>
     .slice(0, 2)
     .toUpperCase();
 
+const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : `${s}…`);
+
 /** The parliament floor: members seated on an arc, the Speaker's podium in the middle. */
 export function Hemicycle({ members, session, thinking, lastEvent }: Props) {
   const seatIds = session ? session.members : members.map((m) => m.id);
@@ -93,7 +95,7 @@ export function Hemicycle({ members, session, thinking, lastEvent }: Props) {
           .join(" ");
         return (
           <g key={m.id} className={cls} transform={`translate(${p.x} ${p.y})`} style={{ ["--c" as string]: m.color }}>
-            <title>{`${m.name} · ${m.roles.join(", ")} · ${m.adapter}${m.model ? ` (${m.model})` : ""}`}</title>
+            <title>{`${m.name} · ${m.roles.join(", ")} · ${m.adapter}${m.model ? ` (${m.model})` : ""}${isThinking ? `\n${thinking[m.id]}` : ""}`}</title>
             <circle r={30} className="halo" />
             <circle r={22} className="disc" filter="url(#glow)" />
             <text className="initials" dy="5">
@@ -103,7 +105,7 @@ export function Hemicycle({ members, session, thinking, lastEvent }: Props) {
               {m.name}
             </text>
             <text className="role" y={55}>
-              {isThinking ? `${thinking[m.id]}…` : m.roles.slice(0, 2).join(" · ")}
+              {isThinking ? clip(thinking[m.id] ?? "", 28) : m.roles.slice(0, 2).join(" · ")}
             </text>
             {winner === m.id && (
               <text className="crown" y={-32}>

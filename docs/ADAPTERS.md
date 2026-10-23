@@ -70,10 +70,19 @@ the run is cut short, streamed `agent_event` text is used instead. `--timeout` i
 set a few seconds below Cortex's own limit so Cline can stop cleanly, and `--yolo`
 makes it exit when the task is done.
 
-**Long prompts.** Linux limits a single argument to 128 KiB. Prompts over 100 KB
-are sent as an attached file (`--file`) to OpenCode/Kilo, and on stdin to Cline
-(both documented inputs). The temp file is deleted afterwards. A prompt that
-starts with `-` is prefixed with a space so it is never read as a flag.
+**Long prompts.** Vote and revision prompts carry every proposal, so they get long.
+Linux limits a single argument to 128 KiB, and Windows limits the whole command line
+to 32,767 characters. Prompts over 100 KB (8 KB on Windows) are sent as an attached
+file (`--file`) to OpenCode/Kilo, on stdin to Cline, and on stdin to Claude Code
+(`longPromptVia: "stdin"` on the generic `cli` adapter; `claude -p` reads it). The temp
+file is deleted afterwards. A prompt that starts with `-` is prefixed with a space so it
+is never read as a flag.
+
+**Time limits.** Each debate call (proposal, critique, revision, vote) to a CLI agent may
+take `defaults.agentTimeoutMs` (10 minutes); API models get `defaults.timeoutMs` (2 minutes).
+Override it per member with `"timeoutMs"` in `cortex.config.json`, or with "Debate time
+limit" when seating from the UI. A timed-out agent is not retried, and while it works its
+seat shows the elapsed minutes and its latest tool call.
 
 **Freebuff.** Freebuff is an interactive terminal UI only: it has no prompt
 argument, print mode or JSON output today (open requests:
