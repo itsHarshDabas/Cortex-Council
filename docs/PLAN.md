@@ -24,8 +24,9 @@ deliberate choices with the reasoning next to them, so they can be revisited.
    executes. Approve, reject, or send back with amendments.
 4. **Pluggable adapters.** One small interface for every model or CLI:
    OpenAI-compatible (ChatGPT, Ollama, LM Studio, OpenRouter, vLLM…), Anthropic,
-   Gemini, and a generic CLI adapter (Claude Code, OpenCode, Gemini CLI,
-   Aider, etc.). Adding a provider = one file.
+   Gemini, dedicated coding-agent adapters (OpenCode, Kilo Code, Cline,
+   Freebuff; see docs/ADAPTERS.md) and a generic CLI adapter (Claude Code,
+   Gemini CLI, Aider, etc.). Adding a provider = one file.
 5. **Safe execution.** Each approved task runs in its own **git worktree** on its
    own branch; commands are spawned without a shell, from an allowlist, with
    timeouts. Then the test command runs and a reviewer member audits the diff.
@@ -38,8 +39,8 @@ deliberate choices with the reasoning next to them, so they can be revisited.
 
 ### Non-goals for the MVP
 - Multi-user accounts, cloud hosting, RBAC.
-- Driving IDE-embedded agents (Cline, Kilo Code, Antigravity) directly. They have
-  no stable headless API; they plug in later via MCP or their CLIs (see §8).
+- Driving IDE-embedded agents (Antigravity) directly. Cline and Kilo Code are
+  covered through their headless CLIs; Freebuff is interactive-only for now.
 - Automatic merging of executed work. The MVP stops at "branch ready + report".
 
 ---
@@ -179,7 +180,7 @@ timeout and retries with backoff; a member that keeps failing is marked
 | M2 | Streaming + cost | token streaming into the chamber, per-member token/cost meter, budget caps |
 | M3 | Smarter routing | task classifier → committee; learn member weights from past review verdicts |
 | M4 | Parallel coding | dependency graph between tasks, parallel worktrees, auto-rebase, PR creation |
-| M5 | MCP bridge | expose the council as an MCP server, consume MCP tools; reach IDE agents (Cline, Kilo Code) |
+| M5 | MCP bridge | expose the council as an MCP server, consume MCP tools; reach IDE agents (Antigravity), Freebuff once it has a headless/ACP mode |
 | M6 | Memory v2 | embeddings-based retrieval over past sessions and repo docs |
 | M7 | Packaging | single binary / Docker image, desktop wrapper |
 
@@ -191,4 +192,4 @@ timeout and retries with backoff; a member that keeps failing is marked
 | Echo-chamber consensus | blind first round, no self-votes, dissent preserved, skeptic persona |
 | Runaway cost / time | rounds cap, per-call timeout, abort, mock by default |
 | Destructive execution | approval gate, worktree isolation, allowlist, no shell |
-| CLI tools change flags | CLI adapter is pure config (command + args template) |
+| CLI tools change flags | flags isolated per preset in `agentCli.ts`; `extraArgs` / generic `cli` adapter as escape hatch |

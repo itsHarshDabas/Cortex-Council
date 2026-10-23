@@ -2,9 +2,9 @@ import { runProcess } from "../execution/runner.ts";
 import type { CompletionRequest, CompletionResult, ExecuteRequest, ExecuteResult, ModelAdapter } from "./types.ts";
 
 /**
- * Wraps any headless agent CLI. Examples:
+ * Wraps any headless agent CLI and returns raw stdout. OpenCode, Kilo Code, Cline and
+ * Freebuff have dedicated adapters in agentCli.ts. Examples:
  *   Claude Code: { command: "claude",   args: ["-p", "{prompt}"] }
- *   OpenCode:    { command: "opencode", args: ["run", "{prompt}"] }
  *   Gemini CLI:  { command: "gemini",   args: ["-p", "{prompt}"] }
  *   Codex CLI:   { command: "codex",    args: ["exec", "{prompt}"] }
  * The prompt is substituted as a single argv entry; nothing is shell-parsed.
