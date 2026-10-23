@@ -15,6 +15,8 @@ deliberate choices with the reasoning next to them, so they can be revisited.
 ### MVP goals
 1. **Runs with zero keys.** A deterministic mock adapter lets the whole debate →
    approval → execution → verification loop run offline (demo, tests, CI).
+   *Update 2026-10-23: the mock is now a test-only fixture (`tests/fixtures/`).
+   A fresh install starts with no members; seat real ones from the UI.*
 2. **Real deliberation, not parallel monologues.** Members propose
    independently, read and critique each other's proposals, revise, score every
    proposal, and a Speaker synthesizes the winner plus the accepted critiques

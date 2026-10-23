@@ -17,11 +17,13 @@ export interface MemberInfo {
   model?: string;
   roles: Role[];
   color: string;
-  /** Members flagged as executors can run approved tasks (CLI agents, mock). */
+  /** Members flagged as executors can run approved tasks (CLI agents). */
   canExecute: boolean;
-  /** Seated from the UI on a managed API provider (editable there); otherwise from cortex.config.json. */
+  /** Seated from the UI (an API provider seat or a CLI agent); otherwise from cortex.config.json. */
   managed?: boolean;
   provider?: string;
+  /** CLI agent seated from the UI: claude-code | opencode | kilo | cline | freebuff. */
+  tool?: string;
 }
 
 export interface CommitteeInfo {

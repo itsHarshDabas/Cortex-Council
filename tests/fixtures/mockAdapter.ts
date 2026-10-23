@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { sleep } from "../util/async.ts";
-import type { Proposal } from "../../shared/types.ts";
-import type { CompletionRequest, CompletionResult, ExecuteRequest, ExecuteResult, ModelAdapter, PromptMeta } from "./types.ts";
+import { sleep } from "../../src/server/util/async.ts";
+import type { Proposal } from "../../src/shared/types.ts";
+import type { CompletionRequest, CompletionResult, ExecuteRequest, ExecuteResult, ModelAdapter, PromptMeta } from "../../src/server/adapters/types.ts";
 
 /**
  * Deterministic, offline stand-in for a real model. Output is derived from a

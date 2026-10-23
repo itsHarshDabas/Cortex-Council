@@ -9,6 +9,7 @@ import {
   type SeatInput,
   type SeatView,
 } from "../../shared/providers.ts";
+import { CLI_TOOLS, type AgentSeatInput, type AgentSeatView } from "../../shared/agents.ts";
 import type { Role } from "../../shared/types.ts";
 import { ValidationError } from "../orchestrator/sessionManager.ts";
 import { now } from "../util/ids.ts";
@@ -106,6 +107,7 @@ function readJson<T>(file: string, fallback: T): T {
 export class ProviderStore {
   private providers: ProviderRecord[] = [];
   private seats: SeatView[] = [];
+  private agents: AgentSeatView[] = [];
   private secrets: Record<string, string> = {};
   private readonly file: string;
   private readonly secretsFile: string;
@@ -117,16 +119,17 @@ export class ProviderStore {
     if (!existsSync(ignore)) writeFileSync(ignore, "*\n", "utf8");
     this.file = join(dir, "providers.json");
     this.secretsFile = join(dir, "secrets.json");
-    const data = readJson<{ providers?: ProviderRecord[]; seats?: SeatView[] }>(this.file, {});
+    const data = readJson<{ providers?: ProviderRecord[]; seats?: SeatView[]; agents?: AgentSeatView[] }>(this.file, {});
     this.providers = data.providers ?? [];
     this.seats = data.seats ?? [];
+    this.agents = data.agents ?? [];
     this.secrets = readJson<Record<string, string>>(this.secretsFile, {});
     if (existsSync(this.secretsFile)) chmodSync(this.secretsFile, 0o600);
     for (const key of Object.values(this.secrets)) registerSecret(key);
   }
 
   private save() {
-    writeFile(this.file, { providers: this.providers, seats: this.seats });
+    writeFile(this.file, { providers: this.providers, seats: this.seats, agents: this.agents });
   }
 
   private saveSecrets() {
@@ -250,39 +253,22 @@ export class ProviderStore {
   /** Validate a seat. `taken` are ids already used by other members. */
   parseSeat(input: Partial<SeatInput>, taken: Set<string>, existing?: SeatView): SeatView {
     const name = text(input.name ?? existing?.name, "name", 60)!;
+    const base = parseCommon(input, taken, name, existing);
     const provider = text(input.provider ?? existing?.provider, "provider", 60)!;
     if (!this.get(provider)) throw new ValidationError(`Unknown provider "${provider}".`);
     const model = text(input.model ?? existing?.model, "model", 200)!;
-    const roles = (input.roles ?? existing?.roles ?? []) as Role[];
-    if (!Array.isArray(roles) || roles.some((r) => !ROLES.includes(r))) throw new ValidationError(`roles must be from: ${ROLES.join(", ")}.`);
-    if (roles.includes("executor")) throw new ValidationError("API models cannot execute tasks; seat a CLI agent as the executor.");
-    let id = existing?.id;
-    if (!id) {
-      id = input.id ? text(input.id, "id", 48)!.toLowerCase() : slug(name);
-      if (!ID_RE.test(id)) throw new ValidationError("id may contain only a-z, 0-9, - and _.");
-      if (input.id && taken.has(id)) throw new ValidationError(`A member with id "${id}" already exists.`);
-      const base = id.slice(0, 44);
-      for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
-    }
-    const color = text(input.color ?? existing?.color, "color", 20, false);
-    if (color && !/^#[0-9a-f]{3,8}$/i.test(color)) throw new ValidationError("color must be a hex colour like #38bdf8.");
+    if (base.roles.includes("executor")) throw new ValidationError("API models cannot execute tasks; seat a CLI agent as the executor.");
     const num = (v: unknown, field: string, min: number, max: number) => {
       if (v === undefined || v === null || v === "") return undefined;
       const n = Number(v);
       if (!Number.isFinite(n) || n < min || n > max) throw new ValidationError(`${field} must be between ${min} and ${max}.`);
       return n;
     };
-    const committees = input.committees ?? existing?.committees ?? [];
-    if (!Array.isArray(committees)) throw new ValidationError("committees must be a list.");
     return {
-      id,
+      ...base,
       name,
       provider,
       model,
-      roles: [...new Set(roles)],
-      persona: text(input.persona ?? existing?.persona, "persona", 1000, false),
-      color,
-      committees: [...new Set(committees.map(String))],
       temperature: num(input.temperature ?? existing?.temperature, "temperature", 0, 2),
       maxTokens: num(input.maxTokens ?? existing?.maxTokens, "maxTokens", 1, 1_000_000),
     };
@@ -301,4 +287,73 @@ export class ProviderStore {
     if (this.seats.length !== before) this.save();
     return this.seats.length !== before;
   }
+
+  // ---- CLI agents ----------------------------------------------------------
+
+  listAgents(): AgentSeatView[] {
+    return this.agents.map((a) => ({ ...a, roles: [...a.roles], committees: [...a.committees] }));
+  }
+
+  getAgent(id: string): AgentSeatView | undefined {
+    return this.agents.find((a) => a.id === id);
+  }
+
+  /** Validate a CLI agent seat. `taken` are ids already used by other members. */
+  parseAgent(input: Partial<AgentSeatInput>, taken: Set<string>): AgentSeatView {
+    const tool = CLI_TOOLS.find((t) => t.id === input.tool);
+    if (!tool) throw new ValidationError(`tool must be one of ${CLI_TOOLS.map((t) => t.id).join(", ")}.`);
+    const name = text(input.name, "name", 60, false) ?? tool.name;
+    const model = text(input.model, "model", 200, false);
+    if (model && !/^[\w.:/@+-]+$/.test(model)) throw new ValidationError("model may contain only letters, digits and . : / @ + - _");
+    const canExecute = tool.headless && input.canExecute !== false;
+    const base = parseCommon(input, taken, name);
+    // The executor role follows the canExecute switch.
+    const roles: Role[] = base.roles.filter((r) => r !== "executor");
+    if (canExecute) roles.push("executor");
+    return { ...base, name, tool: tool.id, ...(model ? { model } : {}), roles, canExecute };
+  }
+
+  putAgent(agent: AgentSeatView) {
+    const i = this.agents.findIndex((a) => a.id === agent.id);
+    if (i >= 0) this.agents[i] = agent;
+    else this.agents.push(agent);
+    this.save();
+  }
+
+  removeAgent(id: string): boolean {
+    const before = this.agents.length;
+    this.agents = this.agents.filter((a) => a.id !== id);
+    if (this.agents.length !== before) this.save();
+    return this.agents.length !== before;
+  }
+}
+
+/** Fields shared by API and CLI seats: id (unique, derived from the name), roles, persona, colour, committees. */
+function parseCommon(
+  input: { id?: string; roles?: Role[]; persona?: string; color?: string; committees?: string[] },
+  taken: Set<string>,
+  name: string,
+  existing?: { id: string; roles: Role[]; persona?: string; color?: string; committees: string[] },
+) {
+  const roles = (input.roles ?? existing?.roles ?? []) as Role[];
+  if (!Array.isArray(roles) || roles.some((r) => !ROLES.includes(r))) throw new ValidationError(`roles must be from: ${ROLES.join(", ")}.`);
+  let id = existing?.id;
+  if (!id) {
+    id = input.id ? text(input.id, "id", 48)!.toLowerCase() : slug(name);
+    if (!ID_RE.test(id)) throw new ValidationError("id may contain only a-z, 0-9, - and _.");
+    if (input.id && taken.has(id)) throw new ValidationError(`A member with id "${id}" already exists.`);
+    const base = id.slice(0, 44);
+    for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
+  }
+  const color = text(input.color ?? existing?.color, "color", 20, false);
+  if (color && !/^#[0-9a-f]{3,8}$/i.test(color)) throw new ValidationError("color must be a hex colour like #38bdf8.");
+  const committees = input.committees ?? existing?.committees ?? [];
+  if (!Array.isArray(committees)) throw new ValidationError("committees must be a list.");
+  return {
+    id,
+    roles: [...new Set(roles)],
+    persona: text(input.persona ?? existing?.persona, "persona", 1000, false),
+    color,
+    committees: [...new Set(committees.map(String))],
+  };
 }

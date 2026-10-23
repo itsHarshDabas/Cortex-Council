@@ -14,8 +14,10 @@ Independent reviewers verify the result, and every step lands in a tamper-eviden
                                      approve · amend · reject       ─► Tests ─► Independent review ─► Report
 ```
 
-Runs fully offline out of the box: the default council is five mock members, so you can
-watch the whole loop without a single API key. Swap in real models with one config file.
+A fresh install starts with an empty chamber: no mock or placeholder members. Seat your real members from
+the UI (**+ CLI agents** for Claude Code, OpenCode, Kilo Code, Cline and Freebuff; **+ API providers** for
+OpenAI, Gemini, Anthropic, OpenRouter, Ollama, LM Studio and more), or define them in `cortex.config.json`.
+A debate needs at least two members. For fully offline use, seat a local model through Ollama or LM Studio.
 
 ## Quick start
 
@@ -105,7 +107,18 @@ Keys are write-only:
   shown in events, and it is deleted when you remove the provider or switch it to an env var.
   On Windows the file permissions are not enforced, so prefer env vars there.
 
-UI-managed providers and seats live in `<dataDir>/providers.json`. A member in `cortex.config.json` can
+### CLI agents from the UI
+
+Click **+ CLI agents** in the Members panel. Cortex checks which of Claude Code (`claude`), OpenCode
+(`opencode`), Kilo Code (`kilo`), Cline (`cline`) and Freebuff (`freebuff`) are on the server's PATH and
+shows the install and sign-in command for any that are missing. Pick one, optionally give a model id in the
+tool's own format, choose roles and committees, and seat it. Only these presets can be seated from the UI,
+so the API can never be used to run arbitrary commands. Sign in to each tool once in a terminal
+(`opencode auth login`, `kilo auth`, `cline auth`, or run `claude` once); Cortex reuses that login and never
+handles the credentials. Agents are read-only while debating; those that can execute run approved tasks in a
+git worktree. Freebuff can be seated but sits out until it ships a headless mode.
+
+UI-managed providers, seats and CLI agents live in `<dataDir>/providers.json`. A member in `cortex.config.json` can
 use one too: `{ "type": "provider", "provider": "groq", "model": "llama-3.3-70b-versatile" }`. API seats
 debate but never execute; seat a CLI agent as the executor.
 
@@ -122,9 +135,8 @@ name and never stored in config; put them in `.env` (see `.env.example`).
 | `opencode` / `kilo` / `cline` | Dedicated coding-agent adapters: **OpenCode**, **Kilo Code**, **Cline** (JSON output parsed, read-only while debating, auto-approve only in worktrees) | `{ "type": "cline", "provider": "anthropic" }` / `{ "type": "kilo", "model": "anthropic/claude-sonnet-4-5" }` |
 | `freebuff` | **Freebuff** (interactive-only today: fails fast and never executes, see [docs/ADAPTERS.md](docs/ADAPTERS.md)) | `{ "type": "freebuff" }` |
 | `cli` | Any other headless agent CLI: **Claude Code**, Gemini CLI, Codex, Aider | `{ "type": "cli", "command": "claude", "args": ["-p", "{prompt}", "--permission-mode", "acceptEdits"] }` |
-| `mock` | Offline, deterministic | `{ "type": "mock", "latencyMs": 900 }` |
 
-Members with `"canExecute": true` and a `cli`, `opencode`, `kilo`, `cline` (or `mock`) adapter can run approved tasks. Set
+Members with `"canExecute": true` and a `cli`, `opencode`, `kilo` or `cline` adapter can run approved tasks. Set
 `execution.workspace` to the git repo they should work in; without it, a sandbox repo is created in
 `.cortex/sandbox`. Set `execution.testCommand` (e.g. `["npm", "test"]`) to gate tasks on your tests.
 
@@ -158,6 +170,9 @@ Adding a provider is one file implementing `ModelAdapter` in `src/server/adapter
 | POST | `/api/providers/test` | list models for a draft or saved (`{id}`) provider |
 | POST | `/api/seats` | seat a model (`{name, provider, model, roles, committees?, persona?, temperature?, maxTokens?}`) |
 | PUT/DELETE | `/api/seats/:id` | edit / unseat a UI-managed member |
+| GET/POST | `/api/agents` | list CLI tool presets and seated agents / seat one (`{tool, name?, model?, roles?, committees?, persona?, canExecute?}`) |
+| GET | `/api/agents/detect` | which preset CLIs are on the server's PATH |
+| DELETE | `/api/agents/:id` | unseat a UI-seated CLI agent |
 | GET/POST | `/api/sessions` | list / create (`{title, task, committee?, members?, maxRounds?, consensusThreshold?}`) |
 | GET | `/api/sessions/:id` | full session state |
 | POST | `/api/sessions/:id/{interject,pause,resume,abort}` | Architect controls |
@@ -170,7 +185,7 @@ Adding a provider is one file implementing `ModelAdapter` in `src/server/adapter
 
 ```
 src/shared/types.ts          types shared by server and UI
-src/server/adapters/         mock, openai, anthropic, gemini, cli, agentCli (opencode/kilo/cline/freebuff) + registry
+src/server/adapters/         openai, anthropic, gemini, cli, agentCli (opencode/kilo/cline/freebuff) + registry
 src/server/orchestrator/     protocol state machine, consensus maths, prompts, session manager
 src/server/execution/        allowlisted runner, git worktrees, execution + review service
 src/server/core/             event bus, hash-chained audit log, session store, project memory

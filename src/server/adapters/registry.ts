@@ -5,18 +5,17 @@ import { AgentCliAdapter } from "./agentCli.ts";
 import { AnthropicAdapter } from "./anthropic.ts";
 import { CliAdapter } from "./cli.ts";
 import { GeminiAdapter } from "./gemini.ts";
-import { MockAdapter } from "./mock.ts";
 import { OpenAIAdapter } from "./openai.ts";
 import type { ModelAdapter } from "./types.ts";
 
 export type ProviderResolver = (id: string) => ResolvedProvider | undefined;
+/** Builds an adapter before the built-in types are tried; return undefined to fall through. Used by tests for fixtures. */
+export type AdapterFactory = (member: MemberConfig, cfg: CortexConfig) => ModelAdapter | undefined;
 
 export function createAdapter(member: MemberConfig, cfg: CortexConfig, resolveProvider?: ProviderResolver): ModelAdapter {
   const a = member.adapter;
   if ("apiKeyEnv" in a && a.apiKeyEnv) registerSecret(process.env[a.apiKeyEnv]);
   switch (a.type) {
-    case "mock":
-      return new MockAdapter(a);
     case "openai":
       return new OpenAIAdapter(a);
     case "anthropic":
@@ -50,13 +49,14 @@ export class AdapterRegistry {
   constructor(
     private readonly cfg: CortexConfig,
     private readonly resolveProvider?: ProviderResolver,
+    private readonly factory?: AdapterFactory,
   ) {
-    for (const m of cfg.members) this.adapters.set(m.id, createAdapter(m, cfg, resolveProvider));
+    for (const m of cfg.members) this.load(m);
   }
 
   /** (Re)build a member's adapter, e.g. after its provider's URL or key changed. */
   load(member: MemberConfig): void {
-    this.adapters.set(member.id, createAdapter(member, this.cfg, this.resolveProvider));
+    this.adapters.set(member.id, this.factory?.(member, this.cfg) ?? createAdapter(member, this.cfg, this.resolveProvider));
   }
 
   delete(memberId: string): void {

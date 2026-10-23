@@ -21,7 +21,9 @@ non-interactive entry point.
 
 ## Configuration
 
-Add members to `cortex.config.json`. Every field except `type` is optional.
+The quickest way is the **+ CLI agents** panel in the UI, which seats any of these tools (and Claude Code)
+with the presets below and stores them in `<dataDir>/providers.json`. To define them by hand instead, add
+members to `cortex.config.json`. Every field except `type` is optional.
 
 ```jsonc
 {
@@ -100,4 +102,6 @@ plain-text stdout is then used as the answer.
 
 Claude Code, Gemini CLI, Codex and Aider keep using the generic
 `{ "type": "cli", "command": ..., "args": [..., "{prompt}"] }` adapter, which
-returns raw stdout.
+returns raw stdout. Optional `executeArgs` replaces `args` when the member executes
+in a worktree. Claude Code seated from the UI uses `["-p", "{prompt}"]` to debate
+(no edit permission) and adds `--permission-mode acceptEdits` only to execute.

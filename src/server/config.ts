@@ -26,7 +26,6 @@ export interface AgentCliConfig {
 }
 
 export type AdapterConfig =
-  | { type: "mock"; latencyMs?: number; failRate?: number }
   | { type: "openai"; baseUrl?: string; model: string; apiKeyEnv?: string; temperature?: number; maxTokens?: number }
   | { type: "anthropic"; baseUrl?: string; model: string; apiKeyEnv?: string; maxTokens?: number }
   | { type: "gemini"; baseUrl?: string; model: string; apiKeyEnv?: string }
@@ -36,6 +35,8 @@ export type AdapterConfig =
       /** Arguments; "{prompt}" is replaced by the prompt text (one argv entry, never shell-parsed). */
       args: string[];
       promptVia?: "arg" | "stdin";
+      /** Arguments for execute() in a worktree, if they differ from deliberation's (e.g. to allow edits). */
+      executeArgs?: string[];
       timeoutMs?: number;
     }
   | AgentCliConfig
@@ -81,67 +82,17 @@ export const palette = ["#38bdf8", "#f472b6", "#a78bfa", "#34d399", "#fbbf24", "
 export const defaultConfig = (): CortexConfig => ({
   server: { host: "127.0.0.1", port: 7420 },
   dataDir: ".cortex",
-  members: [
-    {
-      id: "atlas",
-      name: "Atlas",
-      roles: ["strategist"],
-      persona: "Big-picture strategist. Optimizes for simplicity, sequencing and user value.",
-      adapter: { type: "mock", latencyMs: 900 },
-    },
-    {
-      id: "nyx",
-      name: "Nyx",
-      roles: ["skeptic"],
-      persona: "Professional skeptic. Hunts hidden assumptions, failure modes and scope creep.",
-      adapter: { type: "mock", latencyMs: 900 },
-    },
-    {
-      id: "forge",
-      name: "Forge",
-      roles: ["engineer", "executor"],
-      persona: "Pragmatic senior engineer. Concrete steps, testability, smallest working change.",
-      canExecute: true,
-      adapter: { type: "mock", latencyMs: 900 },
-    },
-    {
-      id: "aegis",
-      name: "Aegis",
-      roles: ["security"],
-      persona: "Security and reliability reviewer. Least privilege, data safety, rollback paths.",
-      adapter: { type: "mock", latencyMs: 900 },
-    },
-    {
-      id: "lumen",
-      name: "Lumen",
-      roles: ["speaker", "reviewer"],
-      persona: "Impartial speaker. Synthesizes the strongest plan and preserves dissent.",
-      adapter: { type: "mock", latencyMs: 900 },
-    },
-  ],
+  // A fresh install starts with an empty chamber: seat real CLI agents or API models from the UI,
+  // or define members in cortex.config.json.
+  members: [],
   committees: [
-    {
-      id: "full",
-      name: "Full Parliament",
-      description: "Every seated member deliberates.",
-      members: ["atlas", "nyx", "forge", "aegis", "lumen"],
-    },
-    {
-      id: "engineering",
-      name: "Engineering Committee",
-      description: "Design and implementation decisions.",
-      members: ["atlas", "forge", "nyx"],
-    },
-    {
-      id: "security",
-      name: "Security Review Board",
-      description: "Threat modelling and hardening.",
-      members: ["aegis", "nyx", "forge"],
-    },
+    { id: "engineering", name: "Engineering Committee", description: "Design and implementation decisions.", members: [] },
+    { id: "security", name: "Security Review Board", description: "Threat modelling and hardening.", members: [] },
   ],
   defaults: {
-    speaker: "lumen",
-    reviewer: "aegis",
+    // Empty = chosen per session: the first member with the speaker / reviewer role, else the first member.
+    speaker: "",
+    reviewer: "",
     maxRounds: 2,
     consensusThreshold: 0.75,
     concurrency: 4,
@@ -196,13 +147,12 @@ export function loadConfig(path = process.env.CORTEX_CONFIG ?? "cortex.config.js
 
 export function validateConfig(cfg: CortexConfig): void {
   const ids = new Set<string>();
-  if (cfg.members.length < 2) throw new ConfigError("At least two members are needed for a debate.");
   cfg.members.forEach((m, i) => {
     if (!m.id || !/^[a-z0-9][a-z0-9_-]*$/i.test(m.id)) throw new ConfigError(`Member #${i} has an invalid id "${m.id}".`);
     if (ids.has(m.id)) throw new ConfigError(`Duplicate member id "${m.id}".`);
     ids.add(m.id);
     if (!m.adapter?.type) throw new ConfigError(`Member "${m.id}" has no adapter.type.`);
-    if (!["mock", "openai", "anthropic", "gemini", "cli", "provider", ...AGENT_CLIS].includes(m.adapter.type))
+    if (!["openai", "anthropic", "gemini", "cli", "provider", ...AGENT_CLIS].includes(m.adapter.type))
       throw new ConfigError(`Member "${m.id}" uses unknown adapter "${m.adapter.type}".`);
     const command = commandOf(m.adapter);
     if (command && !cfg.execution.allowedCommands.includes(basename(command)))
@@ -216,7 +166,7 @@ export function validateConfig(cfg: CortexConfig): void {
     for (const id of c.members) if (!ids.has(id)) throw new ConfigError(`Committee "${c.id}" references unknown member "${id}".`);
   }
   for (const key of ["speaker", "reviewer"] as const) {
-    if (!ids.has(cfg.defaults[key])) throw new ConfigError(`defaults.${key} "${cfg.defaults[key]}" is not a member.`);
+    if (cfg.defaults[key] && !ids.has(cfg.defaults[key])) throw new ConfigError(`defaults.${key} "${cfg.defaults[key]}" is not a member.`);
   }
   if (cfg.defaults.maxRounds < 1 || cfg.defaults.maxRounds > 5) throw new ConfigError("defaults.maxRounds must be 1..5.");
   if (cfg.defaults.consensusThreshold <= 0 || cfg.defaults.consensusThreshold > 1)

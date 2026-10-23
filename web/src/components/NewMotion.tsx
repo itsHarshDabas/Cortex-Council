@@ -20,7 +20,7 @@ const PRESETS = [
 export function NewMotion({ council, onCreated, onClose }: { council: CouncilInfo; onCreated: (s: Session) => void; onClose: () => void }) {
   const [title, setTitle] = useState("");
   const [task, setTask] = useState("");
-  const [mode, setMode] = useState<string>("full");
+  const [mode, setMode] = useState<string>("all");
   const [custom, setCustom] = useState<string[]>(council.members.map((m) => m.id));
   const [rounds, setRounds] = useState(council.defaults.maxRounds);
   const [threshold, setThreshold] = useState(council.defaults.consensusThreshold);
@@ -35,7 +35,7 @@ export function NewMotion({ council, onCreated, onClose }: { council: CouncilInf
       const s = await api.create({
         title,
         task,
-        ...(mode === "custom" ? { members: custom } : { committee: mode }),
+        ...(mode === "custom" ? { members: custom } : mode === "all" ? {} : { committee: mode }),
         maxRounds: rounds,
         consensusThreshold: threshold,
       });
@@ -76,6 +76,7 @@ export function NewMotion({ council, onCreated, onClose }: { council: CouncilInf
         <label>
           Convene
           <select value={mode} onChange={(e) => setMode(e.target.value)}>
+            <option value="all">Full Parliament: everyone seated ({council.members.length})</option>
             {council.committees.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name} ({c.members.length})

@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { listModels } from "../src/server/adapters/models.ts";
 import { createApp } from "../src/server/app.ts";
 import { createHttpServer } from "../src/server/http/server.ts";
-import { testConfig } from "./helpers.ts";
+import { mockFactory, testConfig } from "./helpers.ts";
 
 const KEY = "sk-test-0123456789abcdefSECRET";
 const KEY2 = "sk-test-rotated-9876543210ROTATED";
@@ -83,7 +83,7 @@ describe("listModels", () => {
 
 describe("providers API", () => {
   const cfg = testConfig();
-  const app = createApp(cfg);
+  const app = createApp(cfg, { adapterFactory: mockFactory });
   let server: Server;
   let base: string;
 
@@ -188,7 +188,7 @@ describe("providers API", () => {
   });
 
   it("survives a restart: seats and keys are reloaded from the data dir", () => {
-    const again = createApp({ ...cfg, dataDir: app.cfg.dataDir });
+    const again = createApp({ ...cfg, dataDir: app.cfg.dataDir }, { adapterFactory: mockFactory });
     expect(again.cfg.members.map((m) => m.id)).toContain("groq-llama");
     expect(again.providerStore.resolve("groq")).toMatchObject({ apiKey: KEY2 });
   });

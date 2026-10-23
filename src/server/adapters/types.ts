@@ -1,6 +1,6 @@
 import type { Phase, Proposal } from "../../shared/types.ts";
 
-/** Structured hints for the current call. Real models ignore it (everything is in the prompt); the mock adapter uses it. */
+/** Structured hints for the current call. Real models ignore it (everything is in the prompt); the test fixture adapter uses it. */
 export interface PromptMeta {
   phase: Phase;
   memberId: string;
@@ -46,7 +46,7 @@ export interface ExecuteResult {
 export interface ModelAdapter {
   readonly kind: string;
   complete(req: CompletionRequest): Promise<CompletionResult>;
-  /** Only adapters that can act on a working directory (CLI agents, mock) implement this. */
+  /** Only adapters that can act on a working directory (CLI agents) implement this. */
   execute?(req: ExecuteRequest): Promise<ExecuteResult>;
   health(): Promise<{ ok: boolean; detail?: string }>;
 }

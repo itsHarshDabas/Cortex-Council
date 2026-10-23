@@ -6,6 +6,7 @@ import type {
   Session,
   SessionSummary,
 } from "../../src/shared/types.ts";
+import type { AgentSeatInput, AgentSeatView, AgentsInfo, CliTool, CliToolStatus } from "../../src/shared/agents.ts";
 import type {
   ProviderInput,
   ProviderPreset,
@@ -103,6 +104,10 @@ export const api = {
   seat: (s: SeatInput) => call<SeatView>("POST", "/seats", s),
   updateSeat: (id: string, s: Partial<SeatInput>) => call<SeatView>("PUT", `/seats/${encodeURIComponent(id)}`, s),
   unseat: (id: string) => call("DELETE", `/seats/${encodeURIComponent(id)}`),
+  agents: () => call<AgentsInfo>("GET", "/agents"),
+  detectAgents: () => call<Record<CliTool, CliToolStatus>>("GET", "/agents/detect"),
+  seatAgent: (a: AgentSeatInput) => call<AgentSeatView>("POST", "/agents", a),
+  unseatAgent: (id: string) => call("DELETE", `/agents/${encodeURIComponent(id)}`),
 };
 
 export function openStream(sessionId: string, onEvent: (e: CouncilEvent) => void, onState: (live: boolean) => void): () => void {
