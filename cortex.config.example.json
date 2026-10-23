@@ -36,7 +36,7 @@
       "roles": ["engineer", "executor"],
       "persona": "Hands-on engineer that implements approved tasks.",
       "canExecute": true,
-      "adapter": { "type": "cli", "command": "claude", "args": ["-p", "{prompt}", "--permission-mode", "acceptEdits"], "timeoutMs": 900000 }
+      "adapter": { "type": "cli", "command": "claude", "args": ["-p", "{prompt}"], "executeArgs": ["-p", "{prompt}", "--permission-mode", "acceptEdits"], "longPromptVia": "stdin", "timeoutMs": 900000 }
     },
     {
       "id": "opencode",
@@ -79,6 +79,7 @@
     "consensusThreshold": 0.75,
     "concurrency": 4,
     "timeoutMs": 180000,
+    "agentTimeoutMs": 600000,
     "retries": 1
   },
   "execution": {

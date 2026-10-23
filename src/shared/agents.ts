@@ -82,6 +82,8 @@ export interface AgentSeatInput {
   committees?: string[];
   /** Let this agent run approved tasks in a git worktree (default true; never for Freebuff). */
   canExecute?: boolean;
+  /** Time limit for each debate call, in ms. Default: defaults.agentTimeoutMs (10 min). */
+  timeoutMs?: number;
 }
 
 export interface AgentSeatView {
@@ -94,6 +96,7 @@ export interface AgentSeatView {
   color?: string;
   committees: string[];
   canExecute: boolean;
+  timeoutMs?: number;
 }
 
 export interface CliToolStatus {

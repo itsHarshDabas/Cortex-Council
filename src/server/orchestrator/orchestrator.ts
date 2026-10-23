@@ -11,7 +11,7 @@ import type {
 } from "../../shared/types.ts";
 import type { PromptMeta } from "../adapters/types.ts";
 import type { AdapterRegistry } from "../adapters/registry.ts";
-import type { CortexConfig, MemberConfig } from "../config.ts";
+import { commandOf, type CortexConfig, debateTimeout, type MemberConfig } from "../config.ts";
 import type { EventBus } from "../core/eventBus.ts";
 import type { ProjectMemory, MemoryEntry } from "../core/memory.ts";
 import type { SessionStore } from "../core/store.ts";
@@ -361,11 +361,31 @@ export class Orchestrator {
     const s = this.session;
     this.emit({ type: "member.thinking", actor: m.id, phase });
     const meta: PromptMeta = { phase, memberId: m.id, title: s.title, roles: m.roles, persona: m.persona, round: s.round, task: s.task, ...extra };
+    const { defaults } = this.deps.cfg;
+    const timeoutMs = debateTimeout(m, defaults);
+    // Progress for slow members (CLI agents can take minutes): elapsed time plus their latest tool call.
+    const started = Date.now();
+    let last = "";
+    let lastSent = 0;
+    const progress = (force = false) => {
+      if (!force && Date.now() - lastSent < 2000) return;
+      lastSent = Date.now();
+      const mins = Math.floor((Date.now() - started) / 60_000);
+      const text = [phase, mins ? `${mins}m` : "", last].filter(Boolean).join(" · ");
+      this.emit({ type: "member.thinking", actor: m.id, phase, text });
+    };
+    const heartbeat = setInterval(() => progress(true), 30_000);
+    heartbeat.unref?.();
+    const onProgress = (line: string) => {
+      const l = line.trim().split("\n").at(-1)?.slice(0, 80);
+      if (!l) return;
+      last = l;
+      progress();
+    };
     try {
-      const { defaults } = this.deps.cfg;
       const res = await withRetry(
-        (signal) => this.deps.adapters.get(m.id).complete({ system: P.systemPrompt(m), prompt, signal, meta }),
-        { retries: defaults.retries, timeoutMs: defaults.timeoutMs, signal: this.ctrl.signal },
+        (signal) => this.deps.adapters.get(m.id).complete({ system: P.systemPrompt(m), prompt, signal, meta, timeoutMs, onProgress }),
+        { retries: defaults.retries, timeoutMs, signal: this.ctrl.signal, retryOnTimeout: !commandOf(m.adapter) },
       );
       const json = extractJson<Json>(res.text);
       if (json) return json;
@@ -378,6 +398,8 @@ export class Orchestrator {
       this.save();
       this.emit({ type: "member.absent", actor: m.id, phase, text: `Absent from ${phase}: ${(err as Error).message}` });
       return null;
+    } finally {
+      clearInterval(heartbeat);
     }
   }
 

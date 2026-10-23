@@ -306,11 +306,17 @@ export class ProviderStore {
     const model = text(input.model, "model", 200, false);
     if (model && !/^[\w.:/@+-]+$/.test(model)) throw new ValidationError("model may contain only letters, digits and . : / @ + - _");
     const canExecute = tool.headless && input.canExecute !== false;
+    let timeoutMs: number | undefined;
+    if (input.timeoutMs !== undefined && input.timeoutMs !== null) {
+      timeoutMs = Number(input.timeoutMs);
+      if (!Number.isFinite(timeoutMs) || timeoutMs < 30_000 || timeoutMs > 3_600_000)
+        throw new ValidationError("timeoutMs must be between 30000 (30 s) and 3600000 (1 h).");
+    }
     const base = parseCommon(input, taken, name);
     // The executor role follows the canExecute switch.
     const roles: Role[] = base.roles.filter((r) => r !== "executor");
     if (canExecute) roles.push("executor");
-    return { ...base, name, tool: tool.id, ...(model ? { model } : {}), roles, canExecute };
+    return { ...base, name, tool: tool.id, ...(model ? { model } : {}), roles, canExecute, ...(timeoutMs ? { timeoutMs } : {}) };
   }
 
   putAgent(agent: AgentSeatView) {

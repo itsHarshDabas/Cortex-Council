@@ -1,4 +1,5 @@
 import { runProcess } from "../execution/runner.ts";
+import { MAX_ARG_PROMPT } from "./agentCli.ts";
 import type { CompletionRequest, CompletionResult, ExecuteRequest, ExecuteResult, ModelAdapter } from "./types.ts";
 
 /**
@@ -13,13 +14,22 @@ export class CliAdapter implements ModelAdapter {
   readonly kind = "cli";
 
   constructor(
-    private readonly cfg: { command: string; args: string[]; executeArgs?: string[]; promptVia?: "arg" | "stdin"; timeoutMs?: number },
+    private readonly cfg: {
+      command: string;
+      args: string[];
+      executeArgs?: string[];
+      promptVia?: "arg" | "stdin";
+      /** "stdin": send prompts too long for a command-line argument on stdin instead (the "{prompt}" entry is dropped). */
+      longPromptVia?: "stdin";
+      timeoutMs?: number;
+    },
     private readonly allowedCommands: string[],
     private readonly defaultTimeoutMs: number,
   ) {}
 
   private argv(prompt: string, template = this.cfg.args): { args: string[]; stdin?: string } {
-    if (this.cfg.promptVia === "stdin") return { args: template.filter((a) => a !== "{prompt}"), stdin: prompt };
+    const viaStdin = this.cfg.promptVia === "stdin" || (this.cfg.longPromptVia === "stdin" && Buffer.byteLength(prompt) > MAX_ARG_PROMPT);
+    if (viaStdin) return { args: template.filter((a) => a !== "{prompt}"), stdin: prompt };
     const args = template.map((a) => a.split("{prompt}").join(prompt));
     if (!template.some((a) => a.includes("{prompt}"))) args.push(prompt);
     return { args };
@@ -30,9 +40,10 @@ export class CliAdapter implements ModelAdapter {
     const res = await runProcess(this.cfg.command, args, {
       stdin,
       signal: req.signal,
-      timeoutMs: this.cfg.timeoutMs ?? this.defaultTimeoutMs,
+      timeoutMs: req.timeoutMs ?? this.cfg.timeoutMs ?? this.defaultTimeoutMs,
       allowedCommands: this.allowedCommands,
     });
+    if (res.timedOut) throw new Error(`${this.cfg.command} timed out after ${Math.round((req.timeoutMs ?? this.cfg.timeoutMs ?? this.defaultTimeoutMs) / 1000)}s`);
     if (res.exitCode !== 0) throw new Error(`${this.cfg.command} exited with ${res.exitCode}: ${res.stderr.slice(0, 300)}`);
     return { text: res.stdout };
   }
