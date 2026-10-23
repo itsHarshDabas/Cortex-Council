@@ -43,12 +43,33 @@
       "name": "OpenCode",
       "roles": ["engineer", "executor"],
       "canExecute": true,
-      "adapter": { "type": "cli", "command": "opencode", "args": ["run", "{prompt}"], "timeoutMs": 900000 }
+      "adapter": { "type": "opencode", "timeoutMs": 900000 }
+    },
+    {
+      "id": "kilo",
+      "name": "Kilo Code",
+      "roles": ["engineer", "executor"],
+      "canExecute": true,
+      "adapter": { "type": "kilo", "timeoutMs": 900000 }
+    },
+    {
+      "id": "cline",
+      "name": "Cline",
+      "roles": ["engineer", "reviewer", "executor"],
+      "canExecute": true,
+      "adapter": { "type": "cline", "timeoutMs": 900000 }
+    },
+    {
+      "id": "freebuff",
+      "name": "Freebuff",
+      "roles": ["engineer"],
+      "persona": "Seated for when Freebuff ships a headless mode; skipped automatically until then.",
+      "adapter": { "type": "freebuff" }
     }
   ],
   "committees": [
     { "id": "full", "name": "Full Parliament", "description": "Every model deliberates.", "members": ["gpt", "gemini", "claude", "local"] },
-    { "id": "engineering", "name": "Engineering Committee", "description": "Design and implementation.", "members": ["gpt", "claude", "claude-code"] },
+    { "id": "engineering", "name": "Engineering Committee", "description": "Design and implementation.", "members": ["gpt", "claude", "claude-code", "opencode", "kilo", "cline"] },
     { "id": "security", "name": "Security Review Board", "description": "Threat modelling.", "members": ["local", "gemini", "claude"] }
   ],
   "defaults": {
@@ -62,7 +83,7 @@
   },
   "execution": {
     "workspace": "/path/to/your/git/repo",
-    "allowedCommands": ["git", "npm", "node", "claude", "opencode"],
+    "allowedCommands": ["git", "npm", "node", "claude", "opencode", "kilo", "cline", "freebuff"],
     "testCommand": ["npm", "test"],
     "timeoutMs": 900000
   }

@@ -1,5 +1,6 @@
 import type { CortexConfig, MemberConfig } from "../config.ts";
 import { registerSecret } from "../util/redact.ts";
+import { AgentCliAdapter } from "./agentCli.ts";
 import { AnthropicAdapter } from "./anthropic.ts";
 import { CliAdapter } from "./cli.ts";
 import { GeminiAdapter } from "./gemini.ts";
@@ -23,6 +24,11 @@ export function createAdapter(member: MemberConfig, cfg: CortexConfig): ModelAda
       return new GeminiAdapter(a);
     case "cli":
       return new CliAdapter(a, cfg.execution.allowedCommands, cfg.defaults.timeoutMs);
+    case "opencode":
+    case "kilo":
+    case "cline":
+    case "freebuff":
+      return new AgentCliAdapter(a, cfg.execution.allowedCommands, cfg.defaults.timeoutMs);
   }
 }
 

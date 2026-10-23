@@ -73,19 +73,21 @@ name and never stored in config; put them in `.env` (see `.env.example`).
 | `openai` | ChatGPT/OpenAI, **Ollama**, LM Studio, vLLM, OpenRouter, Groq — anything OpenAI-compatible | `{ "type": "openai", "model": "gpt-5", "apiKeyEnv": "OPENAI_API_KEY" }` / `{ "type": "openai", "baseUrl": "http://localhost:11434/v1", "model": "llama3.1:8b" }` |
 | `anthropic` | Claude models | `{ "type": "anthropic", "model": "claude-opus-5-5" }` |
 | `gemini` | Google Gemini | `{ "type": "gemini", "model": "gemini-2.5-pro" }` |
-| `cli` | Any headless agent CLI: **Claude Code**, **OpenCode**, Gemini CLI, Codex, Aider | `{ "type": "cli", "command": "claude", "args": ["-p", "{prompt}", "--permission-mode", "acceptEdits"] }` |
+| `opencode` / `kilo` / `cline` | Dedicated coding-agent adapters: **OpenCode**, **Kilo Code**, **Cline** (JSON output parsed, read-only while debating, auto-approve only in worktrees) | `{ "type": "cline", "provider": "anthropic" }` / `{ "type": "kilo", "model": "anthropic/claude-sonnet-4-5" }` |
+| `freebuff` | **Freebuff** (interactive-only today: fails fast and never executes, see [docs/ADAPTERS.md](docs/ADAPTERS.md)) | `{ "type": "freebuff" }` |
+| `cli` | Any other headless agent CLI: **Claude Code**, Gemini CLI, Codex, Aider | `{ "type": "cli", "command": "claude", "args": ["-p", "{prompt}", "--permission-mode", "acceptEdits"] }` |
 | `mock` | Offline, deterministic | `{ "type": "mock", "latencyMs": 900 }` |
 
-Members with `"canExecute": true` and a `cli` (or `mock`) adapter can run approved tasks. Set
+Members with `"canExecute": true` and a `cli`, `opencode`, `kilo`, `cline` (or `mock`) adapter can run approved tasks. Set
 `execution.workspace` to the git repo they should work in; without it, a sandbox repo is created in
 `.cortex/sandbox`. Set `execution.testCommand` (e.g. `["npm", "test"]`) to gate tasks on your tests.
 
 Adding a provider is one file implementing `ModelAdapter` in `src/server/adapters/` plus a case in
 `registry.ts`.
 
-> IDE-embedded agents (Cline, Kilo Code, Antigravity) have no stable headless interface yet. They are
-> planned via an MCP bridge (see [docs/PLAN.md](docs/PLAN.md), milestone M5). Freebuff/Hermes can join
-> today through the `cli` or `openai` adapter if they expose either.
+> Flags, output formats and fallbacks for each coding-agent CLI are documented in
+> [docs/ADAPTERS.md](docs/ADAPTERS.md). Antigravity has no headless interface yet and is planned via the MCP
+> bridge (milestone M5); Hermes can join through the `openai` adapter if it exposes an OpenAI-compatible API.
 
 ## Security model
 
@@ -116,7 +118,7 @@ Adding a provider is one file implementing `ModelAdapter` in `src/server/adapter
 
 ```
 src/shared/types.ts          types shared by server and UI
-src/server/adapters/         mock, openai, anthropic, gemini, cli + registry
+src/server/adapters/         mock, openai, anthropic, gemini, cli, agentCli (opencode/kilo/cline/freebuff) + registry
 src/server/orchestrator/     protocol state machine, consensus maths, prompts, session manager
 src/server/execution/        allowlisted runner, git worktrees, execution + review service
 src/server/core/             event bus, hash-chained audit log, session store, project memory

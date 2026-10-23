@@ -4,6 +4,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { extname, join, normalize, resolve } from "node:path";
 import type { CouncilEvent, MemberInfo } from "../../shared/types.ts";
 import type { App } from "../app.ts";
+import { commandOf } from "../config.ts";
 import { ValidationError } from "../orchestrator/sessionManager.ts";
 
 const MAX_BODY = 1_000_000;
@@ -49,7 +50,7 @@ export function createHttpServer(app: App, opts: ServerOptions = {}): Server {
       id: m.id,
       name: m.name,
       adapter: m.adapter.type,
-      model: "model" in m.adapter ? m.adapter.model : m.adapter.type === "cli" ? m.adapter.command : undefined,
+      model: "model" in m.adapter && m.adapter.model ? m.adapter.model : commandOf(m.adapter),
       roles: m.roles,
       color: m.color ?? "#38bdf8",
       canExecute: Boolean(m.canExecute),
