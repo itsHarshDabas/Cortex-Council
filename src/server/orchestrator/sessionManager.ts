@@ -43,6 +43,16 @@ export class SessionManager {
     return members;
   }
 
+  /** The configured speaker / reviewer if seated, else the session's first member holding that role, else its first member. */
+  private pick(role: "speaker" | "reviewer", members: string[], avoid?: string): string {
+    const { cfg } = this.deps;
+    const configured = cfg.defaults[role];
+    if (configured && cfg.members.some((m) => m.id === configured)) return configured;
+    const seated = members.map((id) => cfg.members.find((m) => m.id === id)!);
+    const others = seated.filter((m) => m.id !== avoid);
+    return (others.find((m) => m.roles.includes(role)) ?? others[0] ?? seated[0]!).id;
+  }
+
   create(req: CreateSessionRequest): Session {
     const title = String(req.title ?? "").trim();
     const task = String(req.task ?? "").trim();
@@ -55,6 +65,7 @@ export class SessionManager {
     if (!(threshold > 0 && threshold <= 1)) throw new ValidationError("consensusThreshold must be in (0, 1].");
 
     const members = this.resolveMembers(req);
+    const speaker = this.pick("speaker", members);
     const t = now();
     const session: Session = {
       id: newId("ses"),
@@ -66,8 +77,8 @@ export class SessionManager {
       createdAt: t,
       updatedAt: t,
       members,
-      speaker: defaults.speaker,
-      reviewer: defaults.reviewer,
+      speaker,
+      reviewer: this.pick("reviewer", members, speaker),
       maxRounds,
       consensusThreshold: threshold,
       proposals: {},

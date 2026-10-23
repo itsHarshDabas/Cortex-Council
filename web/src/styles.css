@@ -1267,3 +1267,9 @@ input[type="range"] {
     grid-template-columns: 1fr;
   }
 }
+.roster-empty {
+  margin: 4px 0 8px;
+}
+.member-actions button {
+  white-space: nowrap;
+}

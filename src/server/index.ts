@@ -35,9 +35,11 @@ function main() {
   }
   const server = createHttpServer(app, { token, staticDir: fileURLToPath(new URL("../../dist/web", import.meta.url)) });
   server.listen(cfg.server.port, cfg.server.host, () => {
-    const mocks = cfg.members.filter((m) => m.adapter.type === "mock").length;
+    const n = app.cfg.members.length;
     console.log(`\n  ◆ Cortex Council is in session at http://${cfg.server.host}:${cfg.server.port}`);
-    console.log(`    ${cfg.members.length} members (${mocks} mock) · data in ${app.cfg.dataDir}${token ? " · token auth on" : ""}\n`);
+    console.log(`    ${n} member${n === 1 ? "" : "s"} · data in ${app.cfg.dataDir}${token ? " · token auth on" : ""}`);
+    if (n < 2) console.log("    Seat at least two members: open the UI and use + CLI agents or + API providers.");
+    console.log("");
   });
 
   const shutdown = () => {

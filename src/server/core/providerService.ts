@@ -1,7 +1,10 @@
+import { basename } from "node:path";
+import { CLI_TOOLS, type AgentSeatInput, type AgentSeatView, type CliTool, type CliToolStatus } from "../../shared/agents.ts";
 import type { ProviderInput, ProviderTestInput, ProviderTestResult, ProviderView, SeatInput, SeatView } from "../../shared/providers.ts";
+import { onPath } from "../adapters/agentCli.ts";
 import type { AdapterRegistry } from "../adapters/registry.ts";
 import { listModels } from "../adapters/models.ts";
-import { palette, type CortexConfig, type MemberConfig } from "../config.ts";
+import { palette, type AdapterConfig, type CortexConfig, type MemberConfig } from "../config.ts";
 import { ConflictError, type SessionManager, ValidationError } from "../orchestrator/sessionManager.ts";
 import { registerSecret } from "../util/redact.ts";
 import type { EventBus } from "./eventBus.ts";
@@ -22,21 +25,49 @@ export function seatToMember(seat: SeatView, index: number): MemberConfig {
   };
 }
 
+const AGENT_TIMEOUT_MS = 900_000;
+
+/** The adapter for a UI-seated CLI agent, built from the same presets as docs/ADAPTERS.md. */
+export function agentAdapter(tool: CliTool, model?: string): AdapterConfig {
+  if (tool === "claude-code") {
+    const m = model ? ["--model", model] : [];
+    // Deliberation runs in the server's directory, so it gets no edit permission; execution runs in a worktree.
+    return { type: "cli", command: "claude", args: ["-p", "{prompt}", ...m], executeArgs: ["-p", "{prompt}", ...m, "--permission-mode", "acceptEdits"], timeoutMs: AGENT_TIMEOUT_MS };
+  }
+  return { type: tool, ...(model ? { model } : {}), timeoutMs: AGENT_TIMEOUT_MS };
+}
+
+export function agentToMember(seat: AgentSeatView, index: number): MemberConfig {
+  return {
+    id: seat.id,
+    name: seat.name,
+    roles: seat.roles,
+    color: seat.color ?? palette[index % palette.length],
+    persona: seat.persona,
+    canExecute: seat.canExecute,
+    adapter: agentAdapter(seat.tool, seat.model),
+  };
+}
+
 /** Merge saved seats into the loaded config (startup). Seats whose id clashes with a config member are skipped. */
 export function mergeSeats(cfg: CortexConfig, store: ProviderStore): string[] {
   const skipped: string[] = [];
-  for (const seat of store.listSeats()) {
+  const seats = [
+    ...store.listAgents().map((a) => ({ seat: a, toMember: (i: number) => agentToMember(a, i) })),
+    ...store.listSeats().map((s) => ({ seat: s, toMember: (i: number) => seatToMember(s, i) })),
+  ];
+  for (const { seat, toMember } of seats) {
     if (cfg.members.some((m) => m.id === seat.id)) {
       skipped.push(seat.id);
       continue;
     }
-    cfg.members.push(seatToMember(seat, cfg.members.length));
+    cfg.members.push(toMember(cfg.members.length));
     joinCommittees(cfg, seat);
   }
   return skipped;
 }
 
-function joinCommittees(cfg: CortexConfig, seat: SeatView) {
+function joinCommittees(cfg: CortexConfig, seat: { id: string; committees: string[] }) {
   for (const c of cfg.committees) {
     const want = seat.committees.includes(c.id);
     const has = c.members.includes(seat.id);
@@ -120,7 +151,7 @@ export class ProviderService {
     return this.deps.store.listSeats();
   }
 
-  private validCommittees(seat: SeatView) {
+  private validCommittees(seat: { committees: string[] }) {
     const known = new Set(this.deps.cfg.committees.map((c) => c.id));
     const bad = seat.committees.filter((c) => !known.has(c));
     if (bad.length) throw new ValidationError(`Unknown committee(s): ${bad.join(", ")}.`);
@@ -170,5 +201,60 @@ export class ProviderService {
     joinCommittees(cfg, { ...seat, committees: [] });
     adapters.delete(id);
     this.audit("member.unseated", `Unseated ${seat.name}`, { id });
+  }
+
+  // ---- CLI agents ----------------------------------------------------------
+
+  agents(): AgentSeatView[] {
+    return this.deps.store.listAgents();
+  }
+
+  /** Which preset CLIs are on the server's PATH. Looks the binary up without running it. */
+  detect(): Record<CliTool, CliToolStatus> {
+    const out = {} as Record<CliTool, CliToolStatus>;
+    for (const t of CLI_TOOLS) {
+      const found = onPath(t.command);
+      out[t.id] = { installed: Boolean(found), ...(found ? { detail: found } : {}) };
+    }
+    return out;
+  }
+
+  seatAgent(input: Partial<AgentSeatInput>): AgentSeatView {
+    const { cfg, store, adapters } = this.deps;
+    const agent = store.parseAgent(input, new Set(cfg.members.map((m) => m.id)));
+    this.validCommittees(agent);
+    const member = agentToMember(agent, cfg.members.length);
+    const command = CLI_TOOLS.find((t) => t.id === agent.tool)!.command;
+    if (!cfg.execution.allowedCommands.includes(basename(command)))
+      throw new ValidationError(`"${command}" is not in execution.allowedCommands in cortex.config.json.`);
+    adapters.load(member);
+    store.putAgent(agent);
+    cfg.members.push(member);
+    joinCommittees(cfg, agent);
+    this.audit("member.seated", `Seated ${agent.name} (${agent.tool}${agent.model ? ` · ${agent.model}` : ""})`, {
+      id: agent.id,
+      tool: agent.tool,
+      model: agent.model,
+      roles: agent.roles,
+      committees: agent.committees,
+      canExecute: agent.canExecute,
+    });
+    return agent;
+  }
+
+  unseatAgent(id: string): void {
+    const { cfg, store, adapters, sessions } = this.deps;
+    const agent = store.getAgent(id);
+    if (!agent) throw new ValidationError(`"${id}" is not a UI-managed member; edit cortex.config.json instead.`);
+    if (sessions.activeMembers().has(id)) throw new ConflictError(`${agent.name} is sitting in a running session. Finish or abort it first.`);
+    if (cfg.defaults.speaker === id || cfg.defaults.reviewer === id) throw new ConflictError(`${agent.name} is the default speaker or reviewer.`);
+    // A cortex.config.json member with the same id wins at startup; never remove that one.
+    const ours = JSON.stringify(agentAdapter(agent.tool, agent.model));
+    const i = cfg.members.findIndex((m) => m.id === id && JSON.stringify(m.adapter) === ours);
+    store.removeAgent(id);
+    if (i >= 0) cfg.members.splice(i, 1);
+    joinCommittees(cfg, { id, committees: [] });
+    adapters.delete(id);
+    this.audit("member.unseated", `Unseated ${agent.name}`, { id });
   }
 }

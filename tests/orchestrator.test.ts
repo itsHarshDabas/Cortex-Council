@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ModelAdapter } from "../src/server/adapters/types.ts";
-import { motion, testApp, waitFor } from "./helpers.ts";
+import { mock, mockFactory, motion, testApp, waitFor } from "./helpers.ts";
 
 const failing: ModelAdapter = {
   kind: "broken",
@@ -144,7 +144,7 @@ describe("deliberation", () => {
 
   it("pause holds the debate and resume continues it; abort stops it", async () => {
     const app = testApp((c) => {
-      for (const m of c.members) m.adapter = { type: "mock", latencyMs: 30 };
+      for (const m of c.members) m.adapter = mock(30);
     });
     const { id } = app.sessions.create(motion);
     app.sessions.pause(id);
@@ -185,7 +185,7 @@ describe("restart", () => {
     const { id } = first.sessions.create(motion);
     await waitFor(first, id, ["awaiting_approval"]);
 
-    const second = createApp(first.cfg);
+    const second = createApp(first.cfg, { adapterFactory: mockFactory });
     expect(second.sessions.get(id)?.status).toBe("awaiting_approval");
     second.sessions.decide(id, { kind: "approve" });
     const s = await waitFor(second, id, ["completed", "failed"]);

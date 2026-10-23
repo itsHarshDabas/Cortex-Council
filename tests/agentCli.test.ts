@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { AgentCliAdapter, FREEBUFF_NO_HEADLESS, MAX_ARG_PROMPT, parseClineStream, parseOpenCodeStream } from "../src/server/adapters/agentCli.ts";
 import { AdapterError, type CompletionRequest } from "../src/server/adapters/types.ts";
-import { ConfigError, defaultConfig, validateConfig, type AgentCliConfig } from "../src/server/config.ts";
-import { testApp } from "./helpers.ts";
+import { ConfigError, validateConfig, type AgentCliConfig } from "../src/server/config.ts";
+import { testApp, validConfig } from "./helpers.ts";
 
 /**
  * Each fake CLI is a tiny Node script named like the real tool. It records argv, cwd and
@@ -263,7 +263,7 @@ describe("health and installation", () => {
 
 describe("config and executor integration", () => {
   it("validates agent CLI members against the allowlist", () => {
-    const c = defaultConfig();
+    const c = validConfig();
     c.members[0]!.adapter = { type: "cline" };
     c.members[1]!.adapter = { type: "kilo", command: "/usr/local/bin/kilo" };
     expect(() => validateConfig(c)).not.toThrow();
@@ -272,7 +272,7 @@ describe("config and executor integration", () => {
   });
 
   it("requires {prompt} in a freebuff args template", () => {
-    const c = defaultConfig();
+    const c = validConfig();
     c.members[0]!.adapter = { type: "freebuff", args: ["--print"] };
     expect(() => validateConfig(c)).toThrow(ConfigError);
   });

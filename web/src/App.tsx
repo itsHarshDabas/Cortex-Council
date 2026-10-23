@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { SessionSummary } from "../../src/shared/types.ts";
 import { api, ApiError, setToken, type CouncilInfo } from "./api.ts";
+import { AgentsModal } from "./components/AgentsModal.tsx";
 import { ArchitectConsole } from "./components/ArchitectConsole.tsx";
 import { AuditPanel } from "./components/AuditPanel.tsx";
 import { ChamberFeed } from "./components/ChamberFeed.tsx";
@@ -23,6 +24,7 @@ export function App() {
   const [selected, setSelected] = useState<string | null>(() => new URLSearchParams(location.search).get("session"));
   const [showNew, setShowNew] = useState(false);
   const [showProviders, setShowProviders] = useState(false);
+  const [showAgents, setShowAgents] = useState(false);
   const [councilVersion, setCouncilVersion] = useState(0);
   const [tab, setTab] = useState<Tab>("debate");
   const [toast, setToast] = useState<string | null>(null);
@@ -81,6 +83,7 @@ export function App() {
   const members = council?.members ?? [];
   const lastEvent = [...events].reverse().find((e) => e.type !== "task.output" && e.type !== "session.status") ?? null;
   const awaiting = session?.status === "awaiting_approval";
+  const quorum = members.length >= 2;
 
   return (
     <div className="app">
@@ -100,7 +103,7 @@ export function App() {
           <span className={`live ${live ? "on" : ""}`} title={live ? "Live stream connected" : "Stream disconnected"}>
             ● {live ? "LIVE" : "OFFLINE"}
           </span>
-          <button className="primary" onClick={() => setShowNew(true)} disabled={!council}>
+          <button className="primary" onClick={() => setShowNew(true)} disabled={!council || !quorum} title={quorum ? undefined : "Seat at least two members first"}>
             + New motion
           </button>
         </div>
@@ -111,10 +114,20 @@ export function App() {
         <SessionList sessions={sessions.data ?? []} selected={selected} onSelect={setSelected} />
         <div className="row between">
           <h2>Members</h2>
-          <button className="link small" onClick={() => setShowProviders(true)} disabled={!council} title="Add API providers and models">
-            + API providers
-          </button>
+          <span className="row member-actions">
+            <button className="link small" onClick={() => setShowAgents(true)} disabled={!council} title="Seat local coding-agent CLIs">
+              + CLI agents
+            </button>
+            <button className="link small" onClick={() => setShowProviders(true)} disabled={!council} title="Add API providers and models">
+              + API providers
+            </button>
+          </span>
         </div>
+        {council && members.length === 0 && (
+          <p className="muted small roster-empty">
+            No members yet. Seat a local CLI agent (Claude Code, OpenCode, Kilo, Cline) or an API model to convene the council.
+          </p>
+        )}
         <ul className="roster">
           {members.map((m) => {
             const h = health.data?.[m.id];
@@ -123,7 +136,7 @@ export function App() {
                 <span className={`health ${h ? (h.ok ? "ok" : "bad") : ""}`} title={h?.detail} />
                 <b>{m.name}</b>
                 <small>
-                  {m.provider ?? m.adapter}
+                  {m.tool ?? m.provider ?? m.adapter}
                   {m.model ? ` · ${m.model}` : ""}
                   {m.canExecute ? " · exec" : ""}
                 </small>
@@ -153,9 +166,24 @@ export function App() {
           <div className="panel-body welcome">
             <h3>Welcome, Architect.</h3>
             <p>Table a motion and the council will propose, cross-examine, revise and vote, then present one plan for your approval.</p>
-            <button className="primary" onClick={() => setShowNew(true)} disabled={!council}>
-              + New motion
-            </button>
+            {council && !quorum ? (
+              <>
+                <p className="muted">
+                  The chamber is empty. Seat at least two members: your local coding agents, API models (OpenAI, Gemini, Anthropic, OpenRouter…)
+                  or a local model through Ollama or LM Studio.
+                </p>
+                <div className="row">
+                  <button className="primary" onClick={() => setShowAgents(true)}>
+                    + CLI agents
+                  </button>
+                  <button onClick={() => setShowProviders(true)}>+ API providers</button>
+                </div>
+              </>
+            ) : (
+              <button className="primary" onClick={() => setShowNew(true)} disabled={!council}>
+                + New motion
+              </button>
+            )}
           </div>
         ) : tab === "debate" && session ? (
           <Scoreboard session={session} members={members} />
@@ -184,6 +212,9 @@ export function App() {
       )}
       {showProviders && council && (
         <ProvidersModal council={council} onClose={() => setShowProviders(false)} onChanged={() => setCouncilVersion((v) => v + 1)} />
+      )}
+      {showAgents && council && (
+        <AgentsModal council={council} onClose={() => setShowAgents(false)} onChanged={() => setCouncilVersion((v) => v + 1)} />
       )}
       {toast && (
         <div className="toast" role="alert" onClick={() => setToast(null)}>

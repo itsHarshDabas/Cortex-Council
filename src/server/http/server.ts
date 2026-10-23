@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
+import { CLI_TOOLS } from "../../shared/agents.ts";
 import { PROVIDER_PRESETS } from "../../shared/providers.ts";
 import type { CouncilEvent, MemberInfo } from "../../shared/types.ts";
 import type { App } from "../app.ts";
@@ -56,7 +57,12 @@ export function createHttpServer(app: App, opts: ServerOptions = {}): Server {
       color: m.color ?? "#38bdf8",
       canExecute: Boolean(m.canExecute),
       ...(m.adapter.type === "provider" ? { provider: m.adapter.provider, managed: Boolean(app.providerStore.getSeat(m.id)) } : {}),
+      ...agentInfo(m.id, m.adapter.type),
     }));
+  const agentInfo = (id: string, type: string) => {
+    const a = type !== "provider" ? app.providerStore.getAgent(id) : undefined;
+    return a ? { tool: a.tool, managed: true } : {};
+  };
 
   const session = (id: string) => {
     const s = app.sessions.get(id);
@@ -88,6 +94,15 @@ export function createHttpServer(app: App, opts: ServerOptions = {}): Server {
   });
   route("PUT", "/api/seats/:id", ({ params, body }) => app.providers.updateSeat(params[0]!, body ?? {}));
   route("DELETE", "/api/seats/:id", ({ params }) => (app.providers.unseat(params[0]!), { ok: true }));
+
+  // Local coding-agent CLIs (Claude Code, OpenCode, Kilo, Cline, Freebuff) seated from the UI. Only the presets can be run.
+  route("GET", "/api/agents", () => ({ tools: CLI_TOOLS, seats: app.providers.agents() }));
+  route("GET", "/api/agents/detect", () => app.providers.detect());
+  route("POST", "/api/agents", ({ body, res }) => {
+    res.statusCode = 201;
+    return app.providers.seatAgent(body ?? {});
+  });
+  route("DELETE", "/api/agents/:id", ({ params }) => (app.providers.unseatAgent(params[0]!), { ok: true }));
 
   route("GET", "/api/sessions", () => app.store.list());
   route("POST", "/api/sessions", ({ body, res }) => {

@@ -13,15 +13,15 @@ export class CliAdapter implements ModelAdapter {
   readonly kind = "cli";
 
   constructor(
-    private readonly cfg: { command: string; args: string[]; promptVia?: "arg" | "stdin"; timeoutMs?: number },
+    private readonly cfg: { command: string; args: string[]; executeArgs?: string[]; promptVia?: "arg" | "stdin"; timeoutMs?: number },
     private readonly allowedCommands: string[],
     private readonly defaultTimeoutMs: number,
   ) {}
 
-  private argv(prompt: string): { args: string[]; stdin?: string } {
-    if (this.cfg.promptVia === "stdin") return { args: this.cfg.args.filter((a) => a !== "{prompt}"), stdin: prompt };
-    const args = this.cfg.args.map((a) => a.split("{prompt}").join(prompt));
-    if (!this.cfg.args.some((a) => a.includes("{prompt}"))) args.push(prompt);
+  private argv(prompt: string, template = this.cfg.args): { args: string[]; stdin?: string } {
+    if (this.cfg.promptVia === "stdin") return { args: template.filter((a) => a !== "{prompt}"), stdin: prompt };
+    const args = template.map((a) => a.split("{prompt}").join(prompt));
+    if (!template.some((a) => a.includes("{prompt}"))) args.push(prompt);
     return { args };
   }
 
@@ -38,7 +38,7 @@ export class CliAdapter implements ModelAdapter {
   }
 
   async execute(req: ExecuteRequest): Promise<ExecuteResult> {
-    const { args, stdin } = this.argv(req.instructions);
+    const { args, stdin } = this.argv(req.instructions, this.cfg.executeArgs ?? this.cfg.args);
     const res = await runProcess(this.cfg.command, args, {
       cwd: req.cwd,
       stdin,
