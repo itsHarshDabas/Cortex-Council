@@ -1,4 +1,4 @@
-import { postJson, requireKey } from "./http.ts";
+import { postJson, resolveKey } from "./http.ts";
 import type { CompletionRequest, CompletionResult, ModelAdapter } from "./types.ts";
 
 /** Anthropic Messages API (Claude models). */
@@ -6,7 +6,7 @@ export class AnthropicAdapter implements ModelAdapter {
   readonly kind = "anthropic";
   private readonly baseUrl: string;
 
-  constructor(private readonly cfg: { baseUrl?: string; model: string; apiKeyEnv?: string; maxTokens?: number }) {
+  constructor(private readonly cfg: { baseUrl?: string; model: string; apiKeyEnv?: string; apiKey?: string; maxTokens?: number }) {
     this.baseUrl = (cfg.baseUrl ?? "https://api.anthropic.com").replace(/\/+$/, "");
   }
 
@@ -20,7 +20,7 @@ export class AnthropicAdapter implements ModelAdapter {
         messages: [{ role: "user", content: req.prompt }],
       },
       {
-        "x-api-key": requireKey(this.cfg.apiKeyEnv ?? "ANTHROPIC_API_KEY"),
+        "x-api-key": resolveKey(this.cfg, "ANTHROPIC_API_KEY"),
         "anthropic-version": "2023-06-01",
       },
       req.signal,
@@ -32,7 +32,7 @@ export class AnthropicAdapter implements ModelAdapter {
   }
 
   async health() {
-    const ok = Boolean(process.env[this.cfg.apiKeyEnv ?? "ANTHROPIC_API_KEY"]);
+    const ok = Boolean(this.cfg.apiKey || process.env[this.cfg.apiKeyEnv ?? "ANTHROPIC_API_KEY"]);
     return { ok, detail: ok ? this.cfg.model : "API key not set" };
   }
 }

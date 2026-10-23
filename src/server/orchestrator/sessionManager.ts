@@ -3,6 +3,8 @@ import { newId, now } from "../util/ids.ts";
 import { type Decision, Orchestrator, type OrchestratorDeps } from "./orchestrator.ts";
 
 export class ValidationError extends Error {}
+/** The request is valid but clashes with current state (HTTP 409). */
+export class ConflictError extends ValidationError {}
 
 /** Creates sessions, routes Architect commands to the right orchestrator. */
 export class SessionManager {
@@ -87,6 +89,13 @@ export class SessionManager {
     });
     this.start(new Orchestrator(session, this.deps), (o) => o.run());
     return session;
+  }
+
+  /** Members taking part in a session that has not finished yet. */
+  activeMembers(): Set<string> {
+    const out = new Set<string>();
+    for (const o of this.running.values()) for (const m of o.session.members) out.add(m);
+    return out;
   }
 
   get(id: string): Session | undefined {

@@ -1,4 +1,5 @@
-import type { CortexConfig, MemberConfig } from "../config.ts";
+import { ConfigError, type CortexConfig, type MemberConfig } from "../config.ts";
+import type { ResolvedProvider } from "../core/providers.ts";
 import { registerSecret } from "../util/redact.ts";
 import { AgentCliAdapter } from "./agentCli.ts";
 import { AnthropicAdapter } from "./anthropic.ts";
@@ -8,7 +9,9 @@ import { MockAdapter } from "./mock.ts";
 import { OpenAIAdapter } from "./openai.ts";
 import type { ModelAdapter } from "./types.ts";
 
-export function createAdapter(member: MemberConfig, cfg: CortexConfig): ModelAdapter {
+export type ProviderResolver = (id: string) => ResolvedProvider | undefined;
+
+export function createAdapter(member: MemberConfig, cfg: CortexConfig, resolveProvider?: ProviderResolver): ModelAdapter {
   const a = member.adapter;
   if ("apiKeyEnv" in a && a.apiKeyEnv) registerSecret(process.env[a.apiKeyEnv]);
   switch (a.type) {
@@ -29,14 +32,35 @@ export function createAdapter(member: MemberConfig, cfg: CortexConfig): ModelAda
     case "cline":
     case "freebuff":
       return new AgentCliAdapter(a, cfg.execution.allowedCommands, cfg.defaults.timeoutMs);
+    case "provider": {
+      const p = resolveProvider?.(a.provider);
+      if (!p) throw new ConfigError(`Member "${member.id}" uses unknown provider "${a.provider}".`);
+      registerSecret(p.apiKey ?? (p.apiKeyEnv ? process.env[p.apiKeyEnv] : undefined));
+      const common = { baseUrl: p.baseUrl, model: a.model, apiKey: p.apiKey, apiKeyEnv: p.apiKeyEnv };
+      if (p.kind === "anthropic") return new AnthropicAdapter({ ...common, maxTokens: a.maxTokens });
+      if (p.kind === "gemini") return new GeminiAdapter(common);
+      return new OpenAIAdapter({ ...common, temperature: a.temperature, maxTokens: a.maxTokens });
+    }
   }
 }
 
 export class AdapterRegistry {
   private readonly adapters = new Map<string, ModelAdapter>();
 
-  constructor(private readonly cfg: CortexConfig) {
-    for (const m of cfg.members) this.adapters.set(m.id, createAdapter(m, cfg));
+  constructor(
+    private readonly cfg: CortexConfig,
+    private readonly resolveProvider?: ProviderResolver,
+  ) {
+    for (const m of cfg.members) this.adapters.set(m.id, createAdapter(m, cfg, resolveProvider));
+  }
+
+  /** (Re)build a member's adapter, e.g. after its provider's URL or key changed. */
+  load(member: MemberConfig): void {
+    this.adapters.set(member.id, createAdapter(member, this.cfg, this.resolveProvider));
+  }
+
+  delete(memberId: string): void {
+    this.adapters.delete(memberId);
   }
 
   get(memberId: string): ModelAdapter {

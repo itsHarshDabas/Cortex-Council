@@ -1,4 +1,4 @@
-import { postJson, requireKey } from "./http.ts";
+import { postJson, resolveKey } from "./http.ts";
 import type { CompletionRequest, CompletionResult, ModelAdapter } from "./types.ts";
 
 /** Google Gemini generateContent API. */
@@ -6,7 +6,7 @@ export class GeminiAdapter implements ModelAdapter {
   readonly kind = "gemini";
   private readonly baseUrl: string;
 
-  constructor(private readonly cfg: { baseUrl?: string; model: string; apiKeyEnv?: string }) {
+  constructor(private readonly cfg: { baseUrl?: string; model: string; apiKeyEnv?: string; apiKey?: string }) {
     this.baseUrl = (cfg.baseUrl ?? "https://generativelanguage.googleapis.com").replace(/\/+$/, "");
   }
 
@@ -17,7 +17,7 @@ export class GeminiAdapter implements ModelAdapter {
         systemInstruction: { parts: [{ text: req.system }] },
         contents: [{ role: "user", parts: [{ text: req.prompt }] }],
       },
-      { "x-goog-api-key": requireKey(this.cfg.apiKeyEnv ?? "GEMINI_API_KEY") },
+      { "x-goog-api-key": resolveKey(this.cfg, "GEMINI_API_KEY") },
       req.signal,
     );
     const parts = json?.candidates?.[0]?.content?.parts ?? [];
@@ -28,7 +28,7 @@ export class GeminiAdapter implements ModelAdapter {
   }
 
   async health() {
-    const ok = Boolean(process.env[this.cfg.apiKeyEnv ?? "GEMINI_API_KEY"]);
+    const ok = Boolean(this.cfg.apiKey || process.env[this.cfg.apiKeyEnv ?? "GEMINI_API_KEY"]);
     return { ok, detail: ok ? this.cfg.model : "API key not set" };
   }
 }
