@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createApp } from "./app.ts";
 import { ConfigError, loadConfig } from "./config.ts";
 import { createHttpServer } from "./http/server.ts";
@@ -33,7 +33,7 @@ function main() {
     }
     throw err;
   }
-  const server = createHttpServer(app, { token, staticDir: resolve("dist/web") });
+  const server = createHttpServer(app, { token, staticDir: fileURLToPath(new URL("../../dist/web", import.meta.url)) });
   server.listen(cfg.server.port, cfg.server.host, () => {
     const mocks = cfg.members.filter((m) => m.adapter.type === "mock").length;
     console.log(`\n  ◆ Cortex Council is in session at http://${cfg.server.host}:${cfg.server.port}`);

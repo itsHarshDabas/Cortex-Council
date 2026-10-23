@@ -14,7 +14,8 @@
     "isolatedModules": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
+    "allowJs": true,
     "types": ["node"]
   },
-  "include": ["src", "web/src", "tests", "vite.config.ts", "vitest.config.ts"]
+  "include": ["src", "web/src", "tests", "scripts/gateway.mjs", "vite.config.ts", "vitest.config.ts"]
 }
