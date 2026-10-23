@@ -19,6 +19,9 @@ export interface MemberInfo {
   color: string;
   /** Members flagged as executors can run approved tasks (CLI agents, mock). */
   canExecute: boolean;
+  /** Seated from the UI on a managed API provider (editable there); otherwise from cortex.config.json. */
+  managed?: boolean;
+  provider?: string;
 }
 
 export interface CommitteeInfo {
@@ -185,6 +188,10 @@ export type CouncilEventType =
   | "task.output"
   | "task.finished"
   | "session.report"
+  | "provider.saved"
+  | "provider.removed"
+  | "member.seated"
+  | "member.unseated"
   | "error";
 
 export interface CouncilEvent {

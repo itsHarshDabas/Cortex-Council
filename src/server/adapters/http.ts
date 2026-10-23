@@ -6,6 +6,11 @@ export function requireKey(envName: string): string {
   return key;
 }
 
+/** A key injected at runtime (UI-managed provider) wins over the env var. */
+export function resolveKey(cfg: { apiKey?: string; apiKeyEnv?: string }, defaultEnv: string): string {
+  return cfg.apiKey || requireKey(cfg.apiKeyEnv ?? defaultEnv);
+}
+
 export async function postJson(url: string, body: unknown, headers: Record<string, string>, signal?: AbortSignal): Promise<any> {
   const res = await fetch(url, {
     method: "POST",

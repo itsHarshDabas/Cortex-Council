@@ -6,6 +6,21 @@ import type {
   Session,
   SessionSummary,
 } from "../../src/shared/types.ts";
+import type {
+  ProviderInput,
+  ProviderPreset,
+  ProviderTestInput,
+  ProviderTestResult,
+  ProviderView,
+  SeatInput,
+  SeatView,
+} from "../../src/shared/providers.ts";
+
+export interface ProvidersInfo {
+  providers: ProviderView[];
+  seats: SeatView[];
+  presets: ProviderPreset[];
+}
 
 export interface CouncilInfo {
   members: MemberInfo[];
@@ -80,6 +95,14 @@ export const api = {
   memory: () => call<MemoryEntry[]>("GET", "/memory"),
   addMemory: (title: string, content: string) => call<MemoryEntry>("POST", "/memory", { title, content }),
   deleteMemory: (id: string) => call("DELETE", `/memory/${id}`),
+  providers: () => call<ProvidersInfo>("GET", "/providers"),
+  addProvider: (p: ProviderInput) => call<ProviderView>("POST", "/providers", p),
+  updateProvider: (id: string, p: Partial<ProviderInput>) => call<ProviderView>("PUT", `/providers/${encodeURIComponent(id)}`, p),
+  removeProvider: (id: string) => call("DELETE", `/providers/${encodeURIComponent(id)}`),
+  testProvider: (p: ProviderTestInput) => call<ProviderTestResult>("POST", "/providers/test", p),
+  seat: (s: SeatInput) => call<SeatView>("POST", "/seats", s),
+  updateSeat: (id: string, s: Partial<SeatInput>) => call<SeatView>("PUT", `/seats/${encodeURIComponent(id)}`, s),
+  unseat: (id: string) => call("DELETE", `/seats/${encodeURIComponent(id)}`),
 };
 
 export function openStream(sessionId: string, onEvent: (e: CouncilEvent) => void, onState: (live: boolean) => void): () => void {

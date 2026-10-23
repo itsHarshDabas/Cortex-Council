@@ -1,6 +1,29 @@
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import type { CommitteeInfo, Role } from "../shared/types.ts";
+
+export const AGENT_CLIS = ["opencode", "kilo", "cline", "freebuff"] as const;
+export type AgentCliKind = (typeof AGENT_CLIS)[number];
+
+/** Dedicated coding-agent CLI adapters (see src/server/adapters/agentCli.ts and docs/ADAPTERS.md). */
+export interface AgentCliConfig {
+  type: AgentCliKind;
+  /** Executable; defaults to opencode | kilo | cline | freebuff. Must be in execution.allowedCommands. */
+  command?: string;
+  /** Model id in the tool's own format, e.g. "anthropic/claude-sonnet-4-5". Omit to use the tool's default. */
+  model?: string;
+  /** OpenCode / Kilo: named agent (e.g. "build"). */
+  agent?: string;
+  /** Cline: provider id (e.g. "anthropic", "openrouter"). */
+  provider?: string;
+  /** Auto-approve tool calls when executing in a worktree (default true). Deliberation never auto-approves. */
+  autoApprove?: boolean;
+  /** Extra argv inserted before the prompt. */
+  extraArgs?: string[];
+  /** Freebuff only: opt-in argv template ("{prompt}") for when it ships a headless mode. */
+  args?: string[];
+  timeoutMs?: number;
+}
 
 export type AdapterConfig =
   | { type: "mock"; latencyMs?: number; failRate?: number }
@@ -14,7 +37,10 @@ export type AdapterConfig =
       args: string[];
       promptVia?: "arg" | "stdin";
       timeoutMs?: number;
-    };
+    }
+  | AgentCliConfig
+  /** A provider managed from the UI (<dataDir>/providers.json); its URL and key are resolved at runtime. */
+  | { type: "provider"; provider: string; model: string; temperature?: number; maxTokens?: number };
 
 export interface MemberConfig {
   id: string;
@@ -50,7 +76,7 @@ export interface CortexConfig {
   };
 }
 
-const palette = ["#38bdf8", "#f472b6", "#a78bfa", "#34d399", "#fbbf24", "#fb7185", "#22d3ee", "#c084fc"];
+export const palette = ["#38bdf8", "#f472b6", "#a78bfa", "#34d399", "#fbbf24", "#fb7185", "#22d3ee", "#c084fc"];
 
 export const defaultConfig = (): CortexConfig => ({
   server: { host: "127.0.0.1", port: 7420 },
@@ -124,13 +150,20 @@ export const defaultConfig = (): CortexConfig => ({
   },
   execution: {
     workspace: null,
-    allowedCommands: ["git", "npm", "pnpm", "node", "claude", "opencode", "gemini", "codex", "aider"],
+    allowedCommands: ["git", "npm", "pnpm", "node", "claude", "opencode", "kilo", "cline", "freebuff", "gemini", "codex", "aider"],
     testCommand: [],
     timeoutMs: 600_000,
   },
 });
 
 export class ConfigError extends Error {}
+
+/** The executable a member spawns, if any. */
+export function commandOf(a: AdapterConfig): string | undefined {
+  if (a.type === "cli") return a.command;
+  if ((AGENT_CLIS as readonly string[]).includes(a.type)) return (a as AgentCliConfig).command ?? a.type;
+  return undefined;
+}
 
 /** Load cortex.config.json (or CORTEX_CONFIG), merged over defaults, then validated. */
 export function loadConfig(path = process.env.CORTEX_CONFIG ?? "cortex.config.json"): CortexConfig {
@@ -169,10 +202,13 @@ export function validateConfig(cfg: CortexConfig): void {
     if (ids.has(m.id)) throw new ConfigError(`Duplicate member id "${m.id}".`);
     ids.add(m.id);
     if (!m.adapter?.type) throw new ConfigError(`Member "${m.id}" has no adapter.type.`);
-    if (!["mock", "openai", "anthropic", "gemini", "cli"].includes(m.adapter.type))
+    if (!["mock", "openai", "anthropic", "gemini", "cli", "provider", ...AGENT_CLIS].includes(m.adapter.type))
       throw new ConfigError(`Member "${m.id}" uses unknown adapter "${m.adapter.type}".`);
-    if (m.adapter.type === "cli" && !cfg.execution.allowedCommands.includes(m.adapter.command))
-      throw new ConfigError(`Member "${m.id}" runs "${m.adapter.command}", which is not in execution.allowedCommands.`);
+    const command = commandOf(m.adapter);
+    if (command && !cfg.execution.allowedCommands.includes(basename(command)))
+      throw new ConfigError(`Member "${m.id}" runs "${command}", which is not in execution.allowedCommands.`);
+    if (m.adapter.type === "freebuff" && m.adapter.args && !m.adapter.args.some((a) => a.includes("{prompt}")))
+      throw new ConfigError(`Member "${m.id}": freebuff adapter.args must contain "{prompt}".`);
     m.color ??= palette[i % palette.length];
     m.roles ??= [];
   });

@@ -10,6 +10,7 @@ import { MemoryPanel } from "./components/MemoryPanel.tsx";
 import { NewMotion } from "./components/NewMotion.tsx";
 import { PhaseTimeline } from "./components/PhaseTimeline.tsx";
 import { PlanPanel } from "./components/PlanPanel.tsx";
+import { ProvidersModal } from "./components/ProvidersModal.tsx";
 import { Scoreboard } from "./components/Scoreboard.tsx";
 import { SessionList } from "./components/SessionList.tsx";
 import { usePoll, useSession } from "./hooks.ts";
@@ -21,6 +22,8 @@ export function App() {
   const [needToken, setNeedToken] = useState(false);
   const [selected, setSelected] = useState<string | null>(() => new URLSearchParams(location.search).get("session"));
   const [showNew, setShowNew] = useState(false);
+  const [showProviders, setShowProviders] = useState(false);
+  const [councilVersion, setCouncilVersion] = useState(0);
   const [tab, setTab] = useState<Tab>("debate");
   const [toast, setToast] = useState<string | null>(null);
   const { session, events, thinking, live } = useSession(selected);
@@ -32,7 +35,7 @@ export function App() {
       .council()
       .then(setCouncil)
       .catch((e) => (e instanceof ApiError && e.status === 401 ? setNeedToken(true) : setToast(e.message)));
-  }, [needToken]);
+  }, [needToken, councilVersion]);
 
   useEffect(() => {
     if (!selected && sessions.data?.[0]) setSelected(sessions.data[0].id);
@@ -106,7 +109,12 @@ export function App() {
       <aside className="left">
         <h2>Motions</h2>
         <SessionList sessions={sessions.data ?? []} selected={selected} onSelect={setSelected} />
-        <h2>Members</h2>
+        <div className="row between">
+          <h2>Members</h2>
+          <button className="link small" onClick={() => setShowProviders(true)} disabled={!council} title="Add API providers and models">
+            + API providers
+          </button>
+        </div>
         <ul className="roster">
           {members.map((m) => {
             const h = health.data?.[m.id];
@@ -115,7 +123,7 @@ export function App() {
                 <span className={`health ${h ? (h.ok ? "ok" : "bad") : ""}`} title={h?.detail} />
                 <b>{m.name}</b>
                 <small>
-                  {m.adapter}
+                  {m.provider ?? m.adapter}
                   {m.model ? ` · ${m.model}` : ""}
                   {m.canExecute ? " · exec" : ""}
                 </small>
@@ -173,6 +181,9 @@ export function App() {
             sessions.reload();
           }}
         />
+      )}
+      {showProviders && council && (
+        <ProvidersModal council={council} onClose={() => setShowProviders(false)} onChanged={() => setCouncilVersion((v) => v + 1)} />
       )}
       {toast && (
         <div className="toast" role="alert" onClick={() => setToast(null)}>

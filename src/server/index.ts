@@ -23,7 +23,16 @@ function main() {
     process.exit(1);
   }
 
-  const app = createApp(cfg);
+  let app;
+  try {
+    app = createApp(cfg);
+  } catch (err) {
+    if (err instanceof ConfigError) {
+      console.error(`Config error: ${err.message}`);
+      process.exit(1);
+    }
+    throw err;
+  }
   const server = createHttpServer(app, { token, staticDir: fileURLToPath(new URL("../../dist/web", import.meta.url)) });
   server.listen(cfg.server.port, cfg.server.host, () => {
     const mocks = cfg.members.filter((m) => m.adapter.type === "mock").length;

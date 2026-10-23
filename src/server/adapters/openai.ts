@@ -10,12 +10,13 @@ export class OpenAIAdapter implements ModelAdapter {
   private readonly baseUrl: string;
 
   constructor(
-    private readonly cfg: { baseUrl?: string; model: string; apiKeyEnv?: string; temperature?: number; maxTokens?: number },
+    private readonly cfg: { baseUrl?: string; model: string; apiKeyEnv?: string; apiKey?: string; temperature?: number; maxTokens?: number },
   ) {
     this.baseUrl = (cfg.baseUrl ?? "https://api.openai.com/v1").replace(/\/+$/, "");
   }
 
   private headers(): Record<string, string> {
+    if (this.cfg.apiKey) return { authorization: `Bearer ${this.cfg.apiKey}` };
     return this.cfg.apiKeyEnv ? { authorization: `Bearer ${requireKey(this.cfg.apiKeyEnv)}` } : {};
   }
 
