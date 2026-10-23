@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
-import { basename, resolve } from "node:path";
+import { resolve } from "node:path";
 import type { CommitteeInfo, Role } from "../shared/types.ts";
+import { commandName } from "./execution/runner.ts";
 
 export const AGENT_CLIS = ["opencode", "kilo", "cline", "freebuff"] as const;
 export type AgentCliKind = (typeof AGENT_CLIS)[number];
@@ -155,7 +156,7 @@ export function validateConfig(cfg: CortexConfig): void {
     if (!["openai", "anthropic", "gemini", "cli", "provider", ...AGENT_CLIS].includes(m.adapter.type))
       throw new ConfigError(`Member "${m.id}" uses unknown adapter "${m.adapter.type}".`);
     const command = commandOf(m.adapter);
-    if (command && !cfg.execution.allowedCommands.includes(basename(command)))
+    if (command && !cfg.execution.allowedCommands.includes(commandName(command)))
       throw new ConfigError(`Member "${m.id}" runs "${command}", which is not in execution.allowedCommands.`);
     if (m.adapter.type === "freebuff" && m.adapter.args && !m.adapter.args.some((a) => a.includes("{prompt}")))
       throw new ConfigError(`Member "${m.id}": freebuff adapter.args must contain "{prompt}".`);

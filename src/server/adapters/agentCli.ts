@@ -1,7 +1,8 @@
-import { accessSync, constants, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, isAbsolute, join } from "node:path";
+import { join } from "node:path";
 import type { AgentCliConfig, AgentCliKind } from "../config.ts";
+import { findOnPath } from "../execution/resolve.ts";
 import { runProcess, type RunResult } from "../execution/runner.ts";
 import { AdapterError, type CompletionRequest, type CompletionResult, type ExecuteRequest, type ExecuteResult, type ModelAdapter } from "./types.ts";
 
@@ -276,21 +277,9 @@ export const FREEBUFF_NO_HEADLESS =
   "Freebuff has no headless mode yet (interactive TUI only), so it cannot take part in automated debates or execution. " +
   "Use it by hand in the task's worktree, or set adapter.args once Freebuff ships a print mode.";
 
-/** Finds an executable on PATH without spawning it (a TUI may not exit on --version). */
+/** Finds an executable on PATH without spawning it (a TUI may not exit on --version). Honours PATHEXT on Windows. */
 export function onPath(command: string, env = process.env): string | undefined {
-  const dirs = isAbsolute(command) ? [""] : (env.PATH ?? "").split(delimiter).filter(Boolean);
-  const exts = process.platform === "win32" ? ["", ".cmd", ".exe"] : [""];
-  for (const d of dirs)
-    for (const ext of exts) {
-      const p = d ? join(d, command + ext) : command + ext;
-      try {
-        accessSync(p, constants.X_OK);
-        return p;
-      } catch {
-        /* keep looking */
-      }
-    }
-  return undefined;
+  return findOnPath(command, { env });
 }
 
 function describeFailure(label: string, res: RunResult, parsed: ParsedOutput, timeoutMs: number): string {

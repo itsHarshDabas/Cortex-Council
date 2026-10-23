@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { basename } from "node:path";
+import { resolveCommand } from "./resolve.ts";
 
 export interface RunOptions {
   cwd?: string;
@@ -20,20 +21,28 @@ export interface RunResult {
 
 export class CommandNotAllowedError extends Error {}
 
+/** The allowlist name of a command: its basename, minus a Windows executable extension ("C:\\npm\\kilo.cmd" → "kilo"). */
+export function commandName(command: string): string {
+  return basename(command.replace(/\\/g, "/")).replace(/\.(exe|cmd|bat|com)$/i, "");
+}
+
 /**
  * Spawn a process without a shell. The executable (by basename) must be on the
  * allowlist; arguments are passed as an argv array so model output can never be
  * interpreted as shell syntax.
  */
 export function runProcess(command: string, args: string[], opts: RunOptions): Promise<RunResult> {
-  if (!opts.allowedCommands.includes(basename(command))) {
+  if (!opts.allowedCommands.includes(commandName(command))) {
     return Promise.reject(new CommandNotAllowedError(`Command "${command}" is not in execution.allowedCommands.`));
   }
   const max = opts.maxOutputBytes ?? 2_000_000;
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    // On Windows, npm-installed CLIs are .cmd shims; run what the shim runs instead of using a shell.
+    const { file, prefix } = resolveCommand(command);
+    const child = spawn(file, [...prefix, ...args], {
       cwd: opts.cwd,
       shell: false,
+      windowsHide: true,
       env: { ...process.env, CI: "1", NO_COLOR: "1" },
       stdio: ["pipe", "pipe", "pipe"],
     });

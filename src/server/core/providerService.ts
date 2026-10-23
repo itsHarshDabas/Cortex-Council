@@ -1,4 +1,3 @@
-import { basename } from "node:path";
 import { CLI_TOOLS, type AgentSeatInput, type AgentSeatView, type CliTool, type CliToolStatus } from "../../shared/agents.ts";
 import type { ProviderInput, ProviderTestInput, ProviderTestResult, ProviderView, SeatInput, SeatView } from "../../shared/providers.ts";
 import { onPath } from "../adapters/agentCli.ts";
@@ -6,6 +5,7 @@ import type { AdapterRegistry } from "../adapters/registry.ts";
 import { listModels } from "../adapters/models.ts";
 import { palette, type AdapterConfig, type CortexConfig, type MemberConfig } from "../config.ts";
 import { ConflictError, type SessionManager, ValidationError } from "../orchestrator/sessionManager.ts";
+import { commandName } from "../execution/runner.ts";
 import { registerSecret } from "../util/redact.ts";
 import type { EventBus } from "./eventBus.ts";
 import { normalizeBaseUrl, type ProviderStore } from "./providers.ts";
@@ -225,7 +225,7 @@ export class ProviderService {
     this.validCommittees(agent);
     const member = agentToMember(agent, cfg.members.length);
     const command = CLI_TOOLS.find((t) => t.id === agent.tool)!.command;
-    if (!cfg.execution.allowedCommands.includes(basename(command)))
+    if (!cfg.execution.allowedCommands.includes(commandName(command)))
       throw new ValidationError(`"${command}" is not in execution.allowedCommands in cortex.config.json.`);
     adapters.load(member);
     store.putAgent(agent);
