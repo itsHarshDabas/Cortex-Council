@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { AgentsInfo, CliTool, CliToolPreset, CliToolStatus } from "../../../src/shared/agents.ts";
 import type { Role } from "../../../src/shared/types.ts";
+import { confirmDialog, Icon, Modal } from "./ui.tsx";
 import { api, type CouncilInfo } from "../api.ts";
 
 const ROLES: Role[] = ["strategist", "skeptic", "engineer", "security", "reviewer", "researcher", "speaker"];
@@ -78,14 +79,8 @@ export function AgentsModal({ council, onClose, onChanged }: { council: CouncilI
   const seats = info?.seats ?? [];
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="CLI agents">
-        <div className="row between">
-          <h2>CLI agents</h2>
-          <button type="button" className="link" onClick={onClose} aria-label="Close">
-            close ✕
-          </button>
-        </div>
+    <Modal title="CLI agents" onClose={onClose} size="lg">
+      <div className="modal-body">
         <p className="muted small">
           Seat the coding agents installed on this machine. Install and sign in to each tool once in a terminal; Cortex runs it headless with
           your existing login and never sees those credentials. In debates an agent is read-only. Agents that can execute run approved tasks
@@ -117,11 +112,11 @@ export function AgentsModal({ council, onClose, onChanged }: { council: CouncilI
                   )}
                 </div>
                 <div className="provider-actions">
-                  <a className="link small" href={t.docs} target="_blank" rel="noreferrer">
-                    docs
+                  <a className="btn ghost sm" href={t.docs} target="_blank" rel="noreferrer">
+                    Docs <Icon name="external" size={13} />
                   </a>
-                  <button type="button" disabled={busy} onClick={() => start(t)}>
-                    + Seat
+                  <button type="button" className="sm" disabled={busy} onClick={() => start(t)}>
+                    <Icon name="plus" size={14} /> Add
                   </button>
                 </div>
               </div>
@@ -131,7 +126,7 @@ export function AgentsModal({ council, onClose, onChanged }: { council: CouncilI
 
         {seats.length > 0 && (
           <section>
-            <h3>Seated agents</h3>
+            <h3>Added agents</h3>
             <ul className="seat-list">
               {seats.map((s) => {
                 const color = council.members.find((m) => m.id === s.id)?.color;
@@ -146,8 +141,16 @@ export function AgentsModal({ council, onClose, onChanged }: { council: CouncilI
                       </div>
                     </div>
                     <div className="provider-actions">
-                      <button type="button" className="danger" disabled={busy} onClick={() => confirm(`Unseat ${s.name}?`) && run(() => api.unseatAgent(s.id))}>
-                        Unseat
+                      <button
+                        type="button"
+                        className="danger sm"
+                        disabled={busy}
+                        onClick={async () =>
+                          (await confirmDialog({ title: `Remove ${s.name}?`, body: "It leaves the council; the CLI itself stays installed.", confirmLabel: "Remove", danger: true })) &&
+                          run(() => api.unseatAgent(s.id))
+                        }
+                      >
+                        Remove
                       </button>
                     </div>
                   </li>
@@ -165,7 +168,7 @@ export function AgentsModal({ council, onClose, onChanged }: { council: CouncilI
               save(draft);
             }}
           >
-            <h3>Seat {draft.tool.name}</h3>
+            <h3>Add {draft.tool.name}</h3>
             {!draft.tool.headless && (
               <p className="small muted">
                 Freebuff is an interactive terminal app with no headless mode yet, so it will sit out debates and never execute. Seat it now and
@@ -174,7 +177,7 @@ export function AgentsModal({ council, onClose, onChanged }: { council: CouncilI
             )}
             <div className="row">
               <label>
-                Seat name
+                Display name
                 <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} maxLength={60} />
               </label>
               <label>
@@ -239,17 +242,17 @@ export function AgentsModal({ council, onClose, onChanged }: { council: CouncilI
               Persona (optional)
               <textarea value={draft.persona} onChange={(e) => setDraft({ ...draft, persona: e.target.value })} rows={2} maxLength={1000} placeholder="How this member should argue" />
             </label>
-            <footer>
+            <footer className="modal-foot">
               <button type="button" onClick={() => setDraft(null)}>
                 Cancel
               </button>
               <button type="submit" className="primary" disabled={busy}>
-                Seat member
+                Add member
               </button>
             </footer>
           </form>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }

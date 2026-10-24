@@ -21,7 +21,7 @@ non-interactive entry point.
 
 ## Configuration
 
-The quickest way is the **+ CLI agents** panel in the UI, which seats any of these tools (and Claude Code)
+The quickest way is the **+ CLI agent** panel in the UI, which seats any of these tools (and Claude Code)
 with the presets below and stores them in `<dataDir>/providers.json`. To define them by hand instead, add
 members to `cortex.config.json`. Every field except `type` is optional.
 

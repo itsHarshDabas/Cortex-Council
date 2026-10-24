@@ -10,6 +10,8 @@ export function AuditPanel({ sessionId, version }: { sessionId: string; version:
       <div className="row between">
         <span className="muted small">Hash-chained, append-only log. Every event below is tamper-evident.</span>
         <button
+          type="button"
+          className="sm"
           onClick={() =>
             api
               .verifyAudit()

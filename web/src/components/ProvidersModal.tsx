@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { KeySource, ProviderKind, ProviderPreset, ProviderTestResult, ProviderView, SeatView } from "../../../src/shared/providers.ts";
 import type { Role } from "../../../src/shared/types.ts";
+import { confirmDialog, Icon, Modal } from "./ui.tsx";
 import { api, type CouncilInfo, type ProvidersInfo } from "../api.ts";
 
 const KINDS: { id: ProviderKind; label: string }[] = [
@@ -184,14 +185,8 @@ export function ProvidersModal({ council, onClose, onChanged }: { council: Counc
   }, [seat?.provider]);
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="API providers">
-        <div className="row between">
-          <h2>API providers</h2>
-          <button type="button" className="link" onClick={onClose} aria-label="Close">
-            close ✕
-          </button>
-        </div>
+    <Modal title="API providers" onClose={onClose} size="lg">
+      <div className="modal-body">
         <p className="muted small">
           Connect any OpenAI-compatible, Anthropic or Gemini API, then seat its models in the council. Keys are write-only: Cortex never shows,
           logs or audits them. Referencing an environment variable keeps the key off disk entirely; a pasted key is kept in{" "}
@@ -219,7 +214,7 @@ export function ProvidersModal({ council, onClose, onChanged }: { council: Counc
                   Test
                 </button>
                 <button type="button" disabled={busy} onClick={() => setSeat(newSeat(p.id))}>
-                  + Seat model
+                  <Icon name="plus" size={14} /> Add model
                 </button>
                 <button
                   type="button"
@@ -235,8 +230,11 @@ export function ProvidersModal({ council, onClose, onChanged }: { council: Counc
                   type="button"
                   className="danger"
                   disabled={busy || p.members.length > 0}
-                  title={p.members.length ? "Unseat its members first" : undefined}
-                  onClick={() => confirm(`Remove ${p.name}? Its stored key is deleted too.`) && run(() => api.removeProvider(p.id))}
+                  title={p.members.length ? "Remove its models from the council first" : undefined}
+                  onClick={async () =>
+                    (await confirmDialog({ title: `Remove ${p.name}?`, body: "Its stored key is deleted too.", confirmLabel: "Remove provider", danger: true })) &&
+                    run(() => api.removeProvider(p.id))
+                  }
                 >
                   Remove
                 </button>
@@ -256,7 +254,7 @@ export function ProvidersModal({ council, onClose, onChanged }: { council: Counc
                   setDraft(fromPreset(p));
                 }}
               >
-                + {p.name}
+                <Icon name="plus" size={14} /> {p.name}
               </button>
             ))}
             <button
@@ -266,7 +264,7 @@ export function ProvidersModal({ council, onClose, onChanged }: { council: Counc
                 setDraft({ name: "", kind: "openai", baseUrl: "", keySource: "stored", apiKeyEnv: "", apiKey: "" });
               }}
             >
-              + Custom endpoint
+              <Icon name="plus" size={14} /> Custom endpoint
             </button>
           </div>
         )}
@@ -348,7 +346,7 @@ export function ProvidersModal({ council, onClose, onChanged }: { council: Counc
               </label>
             )}
             <TestResult r={test} />
-            <footer>
+            <footer className="modal-foot">
               <button
                 type="button"
                 onClick={() => {
@@ -370,7 +368,7 @@ export function ProvidersModal({ council, onClose, onChanged }: { council: Counc
 
         {(info?.seats.length ?? 0) > 0 && (
           <section>
-            <h3>Seated from providers</h3>
+            <h3>Models in the council</h3>
             <ul className="seat-list">
               {info!.seats.map((s) => {
                 const color = council.members.find((m) => m.id === s.id)?.color;
@@ -390,9 +388,12 @@ export function ProvidersModal({ council, onClose, onChanged }: { council: Counc
                         type="button"
                         className="danger"
                         disabled={busy}
-                        onClick={() => confirm(`Unseat ${s.name}?`) && run(() => api.unseat(s.id))}
+                        onClick={async () =>
+                          (await confirmDialog({ title: `Remove ${s.name}?`, body: "The model leaves the council; the provider stays configured.", confirmLabel: "Remove", danger: true })) &&
+                          run(() => api.unseat(s.id))
+                        }
                       >
-                        Unseat
+                        Remove
                       </button>
                     </div>
                   </li>
@@ -410,7 +411,7 @@ export function ProvidersModal({ council, onClose, onChanged }: { council: Counc
               saveSeat(seat);
             }}
           >
-            <h3>{seat.id ? `Edit ${seat.name}` : "Seat a model"}</h3>
+            <h3>{seat.id ? `Edit ${seat.name}` : "Add a model"}</h3>
             <div className="row">
               <label>
                 Provider
@@ -441,7 +442,7 @@ export function ProvidersModal({ council, onClose, onChanged }: { council: Counc
             </div>
             <div className="row">
               <label>
-                Seat name
+                Display name
                 <input value={seat.name} onChange={(e) => setSeat({ ...seat, name: e.target.value })} placeholder={seat.model || "e.g. Groq Llama"} maxLength={60} />
               </label>
               <label>
@@ -479,17 +480,17 @@ export function ProvidersModal({ council, onClose, onChanged }: { council: Counc
               Persona (optional)
               <textarea value={seat.persona} onChange={(e) => setSeat({ ...seat, persona: e.target.value })} rows={2} maxLength={1000} placeholder="How this member should argue" />
             </label>
-            <footer>
+            <footer className="modal-foot">
               <button type="button" onClick={() => setSeat(null)}>
                 Cancel
               </button>
               <button type="submit" className="primary" disabled={busy || !providers.length}>
-                {seat.id ? "Save" : "Seat member"}
+                {seat.id ? "Save" : "Add member"}
               </button>
             </footer>
           </form>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }

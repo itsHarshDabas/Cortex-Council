@@ -14,9 +14,18 @@ import { PlanPanel } from "./components/PlanPanel.tsx";
 import { ProvidersModal } from "./components/ProvidersModal.tsx";
 import { Scoreboard } from "./components/Scoreboard.tsx";
 import { SessionList } from "./components/SessionList.tsx";
+import { ConfirmHost, confirmDialog, Icon, statusLabel } from "./components/ui.tsx";
 import { usePoll, useSession } from "./hooks.ts";
 
 type Tab = "debate" | "plan" | "execution" | "audit" | "memory";
+const TABS: { id: Tab; label: string }[] = [
+  { id: "debate", label: "Proposals" },
+  { id: "plan", label: "Plan" },
+  { id: "execution", label: "Execution" },
+  { id: "audit", label: "Audit" },
+  { id: "memory", label: "Memory" },
+];
+const RUNNING = new Set(["deliberating", "paused", "executing"]);
 
 export function App() {
   const [council, setCouncil] = useState<CouncilInfo | null>(null);
@@ -55,6 +64,31 @@ export function App() {
     if (session?.status === "executing") setTab("execution");
   }, [session?.status]);
 
+  const deleteSession = async (s: Pick<SessionSummary, "id" | "title" | "status">) => {
+    const ok = await confirmDialog({
+      title: "Delete this debate?",
+      body: (
+        <>
+          <p>
+            <b>{s.title}</b> and its proposals, plan and worktrees will be removed from this machine. This can't be undone.
+          </p>
+          {s.status === "awaiting_approval" && <p>Its plan is still waiting for approval and will be discarded.</p>}
+          <p className="small">The audit log keeps its entries, so the hash chain stays intact.</p>
+        </>
+      ),
+      confirmLabel: "Delete debate",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.deleteSession(s.id);
+      if (selected === s.id) setSelected(sessions.data?.find((x) => x.id !== s.id)?.id ?? null);
+      sessions.reload();
+    } catch (e) {
+      setToast((e as Error).message);
+    }
+  };
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 5000);
@@ -71,10 +105,14 @@ export function App() {
             setNeedToken(false);
           }}
         >
-          <h1>◆ Cortex Council</h1>
+          <div className="brand">
+            <span className="logo" aria-hidden="true" /> Cortex Council
+          </div>
           <p className="muted">This council requires an access token (CORTEX_TOKEN).</p>
           <input name="token" type="password" placeholder="Access token" autoFocus />
-          <button className="primary">Enter chamber</button>
+          <button type="submit" className="primary">
+            Continue
+          </button>
         </form>
       </div>
     );
@@ -89,61 +127,85 @@ export function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <span className="logo">◆</span> CORTEX <span>COUNCIL</span>
+          <span className="logo" aria-hidden="true" /> Cortex Council
         </div>
         <div className="topbar-mid">
           {session && (
             <>
-              <span className={`status-pill ${session.status}`}>{session.status.replace("_", " ")}</span>
+              <span className="divider-v" aria-hidden="true" />
               <span className="session-title">{session.title}</span>
+              <span className={`status-pill ${session.status}`}>{statusLabel(session.status)}</span>
             </>
           )}
         </div>
         <div className="topbar-right">
           <span className={`live ${live ? "on" : ""}`} title={live ? "Live stream connected" : "Stream disconnected"}>
-            ● {live ? "LIVE" : "OFFLINE"}
+            <span className="live-dot" aria-hidden="true" />
+            {live ? "Live" : "Offline"}
           </span>
-          <button className="primary" onClick={() => setShowNew(true)} disabled={!council || !quorum} title={quorum ? undefined : "Seat at least two members first"}>
-            + New motion
+          {session && (
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => deleteSession(session)}
+              disabled={RUNNING.has(session.status)}
+              title={RUNNING.has(session.status) ? "Abort the debate before deleting it" : undefined}
+            >
+              <Icon name="trash" /> Delete
+            </button>
+          )}
+          <button
+            type="button"
+            className="primary"
+            onClick={() => setShowNew(true)}
+            disabled={!council || !quorum}
+            title={quorum ? undefined : "Add at least two members first"}
+          >
+            <Icon name="plus" /> New debate
           </button>
         </div>
       </header>
 
       <aside className="left">
-        <h2>Motions</h2>
-        <SessionList sessions={sessions.data ?? []} selected={selected} onSelect={setSelected} />
-        <div className="row between">
+        <section className="side-section">
+          <h2>Debates</h2>
+          <SessionList sessions={sessions.data ?? []} selected={selected} onSelect={setSelected} onDelete={deleteSession} />
+        </section>
+        <section className="side-section">
           <h2>Members</h2>
-          <span className="row member-actions">
-            <button className="link small" onClick={() => setShowAgents(true)} disabled={!council} title="Seat local coding-agent CLIs">
-              + CLI agents
+          {council && members.length === 0 && (
+            <p className="muted small empty-note">No members yet. Add a local CLI agent (Claude Code, OpenCode, Kilo, Cline) or an API model to get started.</p>
+          )}
+          <ul className="roster">
+            {members.map((m) => {
+              const h = health.data?.[m.id];
+              return (
+                <li key={m.id} style={{ ["--c" as string]: m.color }}>
+                  <span className="avatar" aria-hidden="true">
+                    {m.name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="roster-text">
+                    <b>{m.name}</b>
+                    <small>
+                      {m.tool ?? m.provider ?? m.adapter}
+                      {m.model ? ` · ${m.model}` : ""}
+                      {m.canExecute ? " · exec" : ""}
+                    </small>
+                  </span>
+                  <span className={`health ${h ? (h.ok ? "ok" : "bad") : ""}`} title={h ? (h.ok ? "Reachable" : h.detail) : "Checking…"} />
+                </li>
+              );
+            })}
+          </ul>
+          <div className="member-actions">
+            <button type="button" className="sm" onClick={() => setShowAgents(true)} disabled={!council} title="Add local coding-agent CLIs">
+              <Icon name="plus" size={14} /> CLI agent
             </button>
-            <button className="link small" onClick={() => setShowProviders(true)} disabled={!council} title="Add API providers and models">
-              + API providers
+            <button type="button" className="sm" onClick={() => setShowProviders(true)} disabled={!council} title="Add API providers and models">
+              <Icon name="plus" size={14} /> API model
             </button>
-          </span>
-        </div>
-        {council && members.length === 0 && (
-          <p className="muted small roster-empty">
-            No members yet. Seat a local CLI agent (Claude Code, OpenCode, Kilo, Cline) or an API model to convene the council.
-          </p>
-        )}
-        <ul className="roster">
-          {members.map((m) => {
-            const h = health.data?.[m.id];
-            return (
-              <li key={m.id} style={{ ["--c" as string]: m.color }}>
-                <span className={`health ${h ? (h.ok ? "ok" : "bad") : ""}`} title={h?.detail} />
-                <b>{m.name}</b>
-                <small>
-                  {m.tool ?? m.provider ?? m.adapter}
-                  {m.model ? ` · ${m.model}` : ""}
-                  {m.canExecute ? " · exec" : ""}
-                </small>
-              </li>
-            );
-          })}
-        </ul>
+          </div>
+        </section>
       </aside>
 
       <main className="chamber">
@@ -154,34 +216,36 @@ export function App() {
       </main>
 
       <section className="right">
-        <nav className="tabs">
-          {(["debate", "plan", "execution", "audit", "memory"] as Tab[]).map((t) => (
-            <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
-              {t === "debate" ? "Proposals" : t[0]!.toUpperCase() + t.slice(1)}
-              {t === "plan" && awaiting && <span className="badge">!</span>}
+        <nav className="tabs" role="tablist" aria-label="Session details">
+          {TABS.map((t) => (
+            <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={tab === t.id ? "active" : ""} onClick={() => setTab(t.id)}>
+              {t.label}
+              {t.id === "plan" && awaiting && <span className="badge" aria-label="needs approval" />}
             </button>
           ))}
         </nav>
         {!session && tab !== "memory" ? (
           <div className="panel-body welcome">
-            <h3>Welcome, Architect.</h3>
-            <p>Table a motion and the council will propose, cross-examine, revise and vote, then present one plan for your approval.</p>
+            <h3>Start a debate</h3>
+            <p className="muted">Describe a task and your models will propose, critique, revise and vote, then hand you one plan to approve.</p>
             {council && !quorum ? (
               <>
                 <p className="muted">
-                  The chamber is empty. Seat at least two members: your local coding agents, API models (OpenAI, Gemini, Anthropic, OpenRouter…)
-                  or a local model through Ollama or LM Studio.
+                  Add at least two members first: local coding agents, API models (OpenAI, Gemini, Anthropic, OpenRouter…) or a local model through
+                  Ollama or LM Studio.
                 </p>
                 <div className="row">
-                  <button className="primary" onClick={() => setShowAgents(true)}>
-                    + CLI agents
+                  <button type="button" className="primary" onClick={() => setShowAgents(true)}>
+                    <Icon name="plus" /> CLI agent
                   </button>
-                  <button onClick={() => setShowProviders(true)}>+ API providers</button>
+                  <button type="button" onClick={() => setShowProviders(true)}>
+                    <Icon name="plus" /> API model
+                  </button>
                 </div>
               </>
             ) : (
-              <button className="primary" onClick={() => setShowNew(true)} disabled={!council}>
-                + New motion
+              <button type="button" className="primary" onClick={() => setShowNew(true)} disabled={!council}>
+                <Icon name="plus" /> New debate
               </button>
             )}
           </div>
@@ -217,10 +281,14 @@ export function App() {
         <AgentsModal council={council} onClose={() => setShowAgents(false)} onChanged={() => setCouncilVersion((v) => v + 1)} />
       )}
       {toast && (
-        <div className="toast" role="alert" onClick={() => setToast(null)}>
-          {toast}
+        <div className="toast" role="alert">
+          <span>{toast}</span>
+          <button type="button" className="ghost icon-only sm" onClick={() => setToast(null)} aria-label="Dismiss">
+            <Icon name="x" size={14} />
+          </button>
         </div>
       )}
+      <ConfirmHost />
     </div>
   );
 }

@@ -33,7 +33,7 @@ export function Scoreboard({ session, members }: { session: Session; members: Me
         {last && last.blockingObjections.length > 0 && (
           <ul className="objections">
             {last.blockingObjections.map((o) => (
-              <li key={o}>⚑ {o}</li>
+              <li key={o}>{o}</li>
             ))}
           </ul>
         )}
@@ -47,15 +47,20 @@ export function Scoreboard({ session, members }: { session: Session; members: Me
         const crit = session.critiques.filter((c) => c.target === id);
         return (
           <article key={id} className={`proposal ${last?.winner === id ? "leading" : ""}`} style={{ ["--c" as string]: color(id) }}>
-            <header onClick={() => setOpen(open === id ? null : id)}>
-              <span className="who">{name(id)}</span>
+            <button type="button" className="proposal-head" onClick={() => setOpen(open === id ? null : id)} aria-expanded={open === id}>
+              <span className="who">
+                <span className={`chev ${open === id ? "open" : ""}`} aria-hidden="true">
+                  ›
+                </span>
+                {name(id)}
+              </span>
               {t && (
                 <span className="score">
                   {t.mean.toFixed(1)}
                   <small>/10 · {Math.round(t.agreement * 100)}% agree</small>
                 </span>
               )}
-            </header>
+            </button>
             {t && (
               <div className="bar">
                 <div style={{ width: `${t.mean * 10}%` }} />

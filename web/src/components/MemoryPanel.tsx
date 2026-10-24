@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../api.ts";
 import { usePoll } from "../hooks.ts";
+import { confirmDialog, Icon } from "./ui.tsx";
 
 export function MemoryPanel({ version }: { version: number }) {
   const { data, error, reload } = usePoll(() => api.memory(), [version]);
@@ -22,7 +23,9 @@ export function MemoryPanel({ version }: { version: number }) {
       >
         <input placeholder="Decision or fact" value={title} onChange={(e) => setTitle(e.target.value)} required />
         <textarea placeholder="Details the council should remember" value={content} onChange={(e) => setContent(e.target.value)} rows={2} required />
-        <button type="submit">Remember</button>
+        <button type="submit" className="self-start">
+          Remember
+        </button>
       </form>
       {error && <div className="error">{error}</div>}
       <ul className="memory">
@@ -30,8 +33,16 @@ export function MemoryPanel({ version }: { version: number }) {
           <li key={m.id}>
             <div className="row between">
               <b>{m.title}</b>
-              <button className="link" onClick={() => api.deleteMemory(m.id).then(reload)} aria-label="Forget">
-                forget
+              <button
+                type="button"
+                className="ghost icon-only sm"
+                onClick={async () => {
+                  if (await confirmDialog({ title: "Forget this memory?", body: m.title, confirmLabel: "Forget", danger: true })) api.deleteMemory(m.id).then(reload);
+                }}
+                aria-label={`Forget "${m.title}"`}
+                title="Forget"
+              >
+                <Icon name="trash" size={14} />
               </button>
             </div>
             <p>{m.content}</p>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Session } from "../../../src/shared/types.ts";
 import { api, type CouncilInfo } from "../api.ts";
+import { Modal } from "./ui.tsx";
 
 const PRESETS = [
   {
@@ -48,13 +49,14 @@ export function NewMotion({ council, onCreated, onClose }: { council: CouncilInf
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <form className="modal" onSubmit={submit} onClick={(e) => e.stopPropagation()}>
-        <h2>Table a motion</h2>
-        <div className="presets">
+    <Modal title="New debate" onClose={onClose}>
+      <form className="modal-body form" onSubmit={submit}>
+        <div className="presets" aria-label="Examples">
+          <span className="field-label">Start from an example</span>
           {PRESETS.map((p) => (
             <button
               type="button"
+              className="sm"
               key={p.title}
               onClick={() => {
                 setTitle(p.title);
@@ -70,13 +72,13 @@ export function NewMotion({ council, onCreated, onClose }: { council: CouncilInf
           <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} required autoFocus />
         </label>
         <label>
-          Task for the council
+          Task
           <textarea value={task} onChange={(e) => setTask(e.target.value)} rows={5} required />
         </label>
         <label>
-          Convene
+          Members
           <select value={mode} onChange={(e) => setMode(e.target.value)}>
-            <option value="all">Full Parliament: everyone seated ({council.members.length})</option>
+            <option value="all">Everyone ({council.members.length})</option>
             {council.committees.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name} ({c.members.length})
@@ -110,15 +112,15 @@ export function NewMotion({ council, onCreated, onClose }: { council: CouncilInf
           </label>
         </div>
         {error && <div className="error">{error}</div>}
-        <footer>
+        <footer className="modal-foot">
           <button type="button" onClick={onClose}>
             Cancel
           </button>
           <button type="submit" className="primary" disabled={busy}>
-            {busy ? "Convening…" : "Open debate"}
+            {busy ? "Starting…" : "Start debate"}
           </button>
         </footer>
       </form>
-    </div>
+    </Modal>
   );
 }

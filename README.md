@@ -15,7 +15,7 @@ Independent reviewers verify the result, and every step lands in a tamper-eviden
 ```
 
 A fresh install starts with an empty chamber: no mock or placeholder members. Seat your real members from
-the UI (**+ CLI agents** for Claude Code, OpenCode, Kilo Code, Cline and Freebuff; **+ API providers** for
+the UI (**+ CLI agent** for Claude Code, OpenCode, Kilo Code, Cline and Freebuff; **+ API model** for
 OpenAI, Gemini, Anthropic, OpenRouter, Ollama, LM Studio and more), or define them in `cortex.config.json`.
 A debate needs at least two members. For fully offline use, seat a local model through Ollama or LM Studio.
 
@@ -61,15 +61,16 @@ Set `CORTEX_HOME` to choose the folder yourself. Other apps can embed the same e
 
 | As the Architect you can… | How |
 |---|---|
-| Table a motion | **+ New motion** → title, task, committee or hand-picked members, rounds, consensus threshold |
+| Start a debate | **+ New debate** → title, task, committee or hand-picked members, rounds, consensus threshold |
 | Watch the debate live | Hemicycle shows who is thinking and who is critiquing whom; the chamber feed streams every proposal, critique, vote and consensus calculation |
-| Intervene at any time | Type in the **ARCHITECT ›** console. Interjections are binding and injected into every later prompt |
+| Intervene at any time | Type in the console under the feed and press **Send**. Interjections are binding and injected into every later prompt |
 | Pause, resume, abort | Console buttons. Checked before every model call |
 | Compare proposals | **Proposals** tab: score per proposal, agreement, consensus meter vs threshold, objections, critiques received |
 | Approve, amend or reject | **Plan** tab. Amend sends the plan back for revision and a fresh vote |
 | Monitor execution | **Execution** tab: branch and worktree per task, diff stat, live executor output, test result, reviewer verdict |
 | Audit everything | **Audit** tab: hash-chained log with one-click chain verification |
 | Curate shared memory | **Memory** tab. Approved plans are saved automatically and recalled into future debates |
+| Delete past debates | Trash icon on a debate in the sidebar, or **Delete** in the top bar. Removes the session file, replay history and worktrees under `.cortex/`; the audit log keeps its entries (and records the deletion) so the hash chain stays intact. Running debates must be aborted first; a plan awaiting approval is discarded |
 
 ## How the deliberation works
 
@@ -92,10 +93,10 @@ proposal; a server restart keeps sessions that were waiting for approval.
 
 ## Adding API providers from the UI
 
-Click **+ API providers** next to *Members*. Pick a preset (OpenAI, Anthropic, Gemini, OpenRouter, Groq,
+Click **+ API model** under *Members*. Pick a preset (OpenAI, Anthropic, Gemini, OpenRouter, Groq,
 DeepSeek, Mistral, xAI, Together, Ollama, LM Studio) or **Custom endpoint** for any OpenAI-compatible URL.
 **Test connection** lists the provider's models, which checks the URL and key and fills the model picker.
-Then **Seat model**: pick the model, a name, roles and committees. The member joins the council at once,
+Then **Add model**: pick the model, a name, roles and committees. The member joins the council at once,
 with no restart. Edit or unseat members and rotate keys the same way.
 
 Keys are write-only:
@@ -109,7 +110,7 @@ Keys are write-only:
 
 ### CLI agents from the UI
 
-Click **+ CLI agents** in the Members panel. Cortex checks which of Claude Code (`claude`), OpenCode
+Click **+ CLI agent** under *Members*. Cortex checks which of Claude Code (`claude`), OpenCode
 (`opencode`), Kilo Code (`kilo`), Cline (`cline`) and Freebuff (`freebuff`) are on the server's PATH and
 shows the install and sign-in command for any that are missing. Pick one, optionally give a model id in the
 tool's own format, choose roles and committees, and seat it. Only these presets can be seated from the UI,
@@ -174,7 +175,7 @@ Adding a provider is one file implementing `ModelAdapter` in `src/server/adapter
 | GET | `/api/agents/detect` | which preset CLIs are on the server's PATH |
 | DELETE | `/api/agents/:id` | unseat a UI-seated CLI agent |
 | GET/POST | `/api/sessions` | list / create (`{title, task, committee?, members?, maxRounds?, consensusThreshold?}`) |
-| GET | `/api/sessions/:id` | full session state |
+| GET/DELETE | `/api/sessions/:id` | full session state / delete a finished debate (409 while it is still running) |
 | POST | `/api/sessions/:id/{interject,pause,resume,abort}` | Architect controls |
 | POST | `/api/sessions/:id/{approve,amend,reject}` | approval gate |
 | GET | `/api/stream?session=:id` | Server-Sent Events (history replay, then live) |
