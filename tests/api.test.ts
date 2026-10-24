@@ -1,4 +1,6 @@
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
+import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Server } from "node:http";
 import { createHttpServer } from "../src/server/http/server.ts";
@@ -82,5 +84,55 @@ describe("HTTP API", () => {
     const list = await (await fetch(`${base}/memory`, { headers: auth })).json();
     expect(list.some((m: { id: string }) => m.id === id)).toBe(true);
     expect((await fetch(`${base}/memory/${id}`, { method: "DELETE", headers: auth })).status).toBe(200);
+  });
+
+  describe("deleting debates", () => {
+    const del = (id: string) => fetch(`${base}/sessions/${id}`, { method: "DELETE", headers: auth });
+    const file = (id: string) => join(app.cfg.dataDir, "sessions", `${id}.json`);
+
+    it("deletes a finished debate, its file, history and worktrees, and records it in the audit log", async () => {
+      const { id } = await (await post("/sessions", motion)).json();
+      await waitFor(app, id, ["awaiting_approval"]);
+      expect((await post(`/sessions/${id}/reject`, {})).status).toBe(200);
+      await waitFor(app, id, ["rejected"]);
+      const wt = join(app.cfg.dataDir, "worktrees", id, "t1");
+      mkdirSync(wt, { recursive: true });
+      writeFileSync(join(wt, "x.txt"), "x");
+      expect(existsSync(file(id))).toBe(true);
+
+      expect((await del(id)).status).toBe(200);
+      expect(existsSync(file(id))).toBe(false);
+      expect(existsSync(join(app.cfg.dataDir, "worktrees", id))).toBe(false);
+      expect((await fetch(`${base}/sessions/${id}`, { headers: auth })).status).toBe(404);
+      const list = await (await fetch(`${base}/sessions`, { headers: auth })).json();
+      expect(list.some((s: { id: string }) => s.id === id)).toBe(false);
+      expect(app.bus.historyFor(id)).toEqual([]);
+      const audit = await (await fetch(`${base}/audit?session=${id}`, { headers: auth })).json();
+      expect(audit.at(-1).type).toBe("session.deleted");
+      expect((await (await fetch(`${base}/audit/verify`, { headers: auth })).json()).ok).toBe(true);
+      expect((await del(id)).status).toBe(404);
+    });
+
+    it("discards a plan waiting at the approval gate", async () => {
+      const { id } = await (await post("/sessions", motion)).json();
+      await waitFor(app, id, ["awaiting_approval"]);
+      expect((await del(id)).status).toBe(200);
+      expect(app.sessions.get(id)).toBeUndefined();
+    });
+
+    it("refuses to delete a debate that is still running", async () => {
+      const slow = testApp((c) => c.members.forEach((m) => ((m.adapter as unknown as { latencyMs: number }).latencyMs = 200)));
+      const s = slow.sessions.create(motion);
+      await expect(slow.sessions.remove(s.id)).rejects.toThrow(/Abort it/);
+      slow.sessions.abort(s.id);
+      await slow.sessions.settled(s.id);
+      await slow.sessions.remove(s.id);
+      expect(slow.store.get(s.id)).toBeUndefined();
+    });
+
+    it("never touches paths outside the store", async () => {
+      expect((await del("..%2F..%2Fetc")).status).toBe(404);
+      expect((await fetch(`${base}/sessions/x`, { method: "DELETE", headers: { ...auth, origin: "https://evil.example" } })).status).toBe(403);
+    });
   });
 });

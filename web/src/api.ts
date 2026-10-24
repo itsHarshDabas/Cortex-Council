@@ -86,6 +86,7 @@ export const api = {
   sessions: () => call<SessionSummary[]>("GET", "/sessions"),
   session: (id: string) => call<Session>("GET", `/sessions/${id}`),
   create: (req: CreateSessionRequest) => call<Session>("POST", "/sessions", req),
+  deleteSession: (id: string) => call("DELETE", `/sessions/${encodeURIComponent(id)}`),
   interject: (id: string, text: string) => call("POST", `/sessions/${id}/interject`, { text }),
   control: (id: string, action: "pause" | "resume" | "abort") => call("POST", `/sessions/${id}/${action}`, {}),
   approve: (id: string, note?: string) => call("POST", `/sessions/${id}/approve`, { note }),

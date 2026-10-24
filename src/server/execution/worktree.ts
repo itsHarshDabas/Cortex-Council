@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve, sep } from "node:path";
 import { runProcess, type RunResult } from "./runner.ts";
 
 const GIT_IDENTITY = ["-c", "user.name=Cortex Council", "-c", "user.email=council@localhost"];
@@ -61,5 +61,21 @@ export class WorktreeManager {
     const diffStat = (await this.gitOk(["diff", "--stat", "HEAD~1", "HEAD"], path)).trim();
     const diff = await this.gitOk(["diff", "HEAD~1", "HEAD"], path);
     return { diffStat, diff };
+  }
+
+  /**
+   * Remove the worktrees created for a session (under <dataDir>/worktrees/<sessionId>).
+   * The branches stay in the repo, so committed results remain reviewable.
+   */
+  async removeSession(sessionId: string): Promise<void> {
+    const root = resolve(this.dataDir, "worktrees");
+    const dir = resolve(root, sessionId);
+    if (!/^[A-Za-z0-9_-]+$/.test(sessionId) || !dir.startsWith(root + sep) || !existsSync(dir)) return;
+    for (const name of readdirSync(dir)) {
+      // Unregister each worktree from git; fall back to deleting the folder if git refuses.
+      await this.git(["worktree", "remove", "--force", join(dir, name)]).catch(() => undefined);
+    }
+    rmSync(dir, { recursive: true, force: true });
+    await this.git(["worktree", "prune"]).catch(() => undefined);
   }
 }

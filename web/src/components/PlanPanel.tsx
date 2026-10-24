@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { MemberInfo, Session } from "../../../src/shared/types.ts";
 import { api } from "../api.ts";
+import { Icon } from "./ui.tsx";
 
 /** The unified plan and the Architect's approval gate. */
 export function PlanPanel({ session, members, onError }: { session: Session; members: MemberInfo[]; onError: (m: string) => void }) {
@@ -24,7 +25,7 @@ export function PlanPanel({ session, members, onError }: { session: Session; mem
   if (!plan) return <div className="panel-body muted">The Speaker will present a unified plan once the debate concludes.</div>;
   return (
     <div className="panel-body">
-      {gate && <div className="gate-banner">◆ Awaiting your approval. Nothing executes until you decide.</div>}
+      {gate && <div className="gate-banner">Waiting for your approval. Nothing runs until you decide.</div>}
       <h3>{plan.title}</h3>
       <p className="muted">{plan.rationale}</p>
       <h4>Tasks</h4>
@@ -61,16 +62,16 @@ export function PlanPanel({ session, members, onError }: { session: Session; mem
       )}
       {gate && (
         <div className="gate">
-          <textarea value={amend} onChange={(e) => setAmend(e.target.value)} placeholder="Amendment: send the plan back with new instructions…" rows={3} />
+          <textarea value={amend} onChange={(e) => setAmend(e.target.value)} placeholder="Optional: send the plan back with new instructions…" aria-label="Amendment" rows={3} />
           <div className="gate-actions">
-            <button className="primary" disabled={busy} onClick={() => act(api.approve(session.id))}>
-              ✓ Approve &amp; execute
+            <button type="button" className="primary" disabled={busy} onClick={() => act(api.approve(session.id))}>
+              <Icon name="check" /> Approve &amp; run
             </button>
-            <button disabled={busy || !amend.trim()} onClick={() => act(api.amend(session.id, amend))}>
-              ↺ Amend
+            <button type="button" disabled={busy || !amend.trim()} onClick={() => act(api.amend(session.id, amend))}>
+              <Icon name="undo" /> Amend
             </button>
-            <button className="danger" disabled={busy} onClick={() => act(api.reject(session.id, amend || undefined))}>
-              ✕ Reject
+            <button type="button" className="danger" disabled={busy} onClick={() => act(api.reject(session.id, amend || undefined))}>
+              Reject
             </button>
           </div>
         </div>

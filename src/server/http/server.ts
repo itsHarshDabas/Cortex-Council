@@ -110,6 +110,10 @@ export function createHttpServer(app: App, opts: ServerOptions = {}): Server {
     return app.sessions.create(body ?? {});
   });
   route("GET", "/api/sessions/:id", ({ params }) => session(params[0]!));
+  route("DELETE", "/api/sessions/:id", async ({ params }) => {
+    await app.sessions.remove(session(params[0]!).id);
+    return { ok: true };
+  });
   route("GET", "/api/sessions/:id/events", ({ params }) => app.bus.historyFor(session(params[0]!).id));
   route("POST", "/api/sessions/:id/interject", ({ params, body }) => (app.sessions.interject(params[0]!, String(body?.text ?? "")), { ok: true }));
   for (const action of ["pause", "resume", "abort"] as const) {

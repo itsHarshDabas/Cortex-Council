@@ -141,6 +141,27 @@ export class SessionManager {
     }
   }
 
+  /**
+   * Delete a finished session: its stored file, replay history and worktrees. A session parked at the
+   * approval gate is rejected first; one that is still deliberating or executing must be aborted.
+   * The audit log is append-only, so it keeps the session's entries plus a session.deleted record.
+   */
+  async remove(id: string): Promise<void> {
+    const s = this.get(id);
+    if (!s) throw new ValidationError("Unknown session.");
+    const orch = this.running.get(id);
+    if (orch) {
+      if (orch.session.status !== "awaiting_approval") throw new ConflictError("This debate is still running. Abort it before deleting it.");
+      orch.abort();
+      await this.settled(id);
+    }
+    await this.deps.executor.worktrees.removeSession(id);
+    this.deps.store.remove(id);
+    this.done.delete(id);
+    this.deps.bus.emit({ sessionId: id, type: "session.deleted", actor: "architect", text: s.title });
+    this.deps.bus.forget(id);
+  }
+
   /** Test helper: resolves when the session's run loop finishes. */
   settled(id: string): Promise<void> {
     return this.done.get(id) ?? Promise.resolve();

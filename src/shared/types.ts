@@ -190,6 +190,7 @@ export type CouncilEventType =
   | "task.output"
   | "task.finished"
   | "session.report"
+  | "session.deleted"
   | "provider.saved"
   | "provider.removed"
   | "member.seated"

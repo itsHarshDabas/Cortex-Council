@@ -23,7 +23,7 @@ const initials = (name: string) =>
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : `${s}…`);
 
-/** The parliament floor: members seated on an arc, the Speaker's podium in the middle. */
+/** Members seated on an arc around the current phase; highlights who is thinking, speaking or leading. */
 export function Hemicycle({ members, session, thinking, lastEvent }: Props) {
   const seatIds = session ? session.members : members.map((m) => m.id);
   const seated = seatIds.map((id) => members.find((m) => m.id === id)).filter((m): m is MemberInfo => Boolean(m));
@@ -44,22 +44,7 @@ export function Hemicycle({ members, session, thinking, lastEvent }: Props) {
 
   return (
     <svg className="hemicycle" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Council chamber">
-      <defs>
-        <radialGradient id="floor" cx="50%" cy="100%" r="80%">
-          <stop offset="0%" stopColor="rgba(56,189,248,0.22)" />
-          <stop offset="60%" stopColor="rgba(129,140,248,0.06)" />
-          <stop offset="100%" stopColor="rgba(0,0,0,0)" />
-        </radialGradient>
-        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="4" result="b" />
-          <feMerge>
-            <feMergeNode in="b" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-      <path d={`M ${CX - R - 30} ${CY} A ${R + 30} ${R + 30} 0 0 1 ${CX + R + 30} ${CY} Z`} fill="url(#floor)" />
-      {[R + 30, R - 40, R - 100].map((r) => (
+      {[R + 30, R - 70].map((r) => (
         <path key={r} d={`M ${CX - r} ${CY} A ${r} ${r} 0 0 1 ${CX + r} ${CY}`} className="arc" />
       ))}
 
@@ -78,12 +63,12 @@ export function Hemicycle({ members, session, thinking, lastEvent }: Props) {
       })}
 
       <g className="podium">
-        <rect x={CX - 70} y={CY - 52} width={140} height={44} rx={10} />
+        <rect x={CX - 84} y={CY - 52} width={168} height={44} rx={8} />
         <text x={CX} y={CY - 34} className="podium-phase">
-          {(session?.phase ?? "standby").toUpperCase()}
+          {session ? session.phase[0]!.toUpperCase() + session.phase.slice(1) : "Idle"}
         </text>
         <text x={CX} y={CY - 18} className="podium-round">
-          {session ? `round ${session.round} · ${session.status.replace("_", " ")}` : "no motion on the floor"}
+          {session ? `round ${session.round} · ${session.status.replace("_", " ")}` : "no debate selected"}
         </text>
       </g>
 
@@ -97,7 +82,7 @@ export function Hemicycle({ members, session, thinking, lastEvent }: Props) {
           <g key={m.id} className={cls} transform={`translate(${p.x} ${p.y})`} style={{ ["--c" as string]: m.color }}>
             <title>{`${m.name} · ${m.roles.join(", ")} · ${m.adapter}${m.model ? ` (${m.model})` : ""}${isThinking ? `\n${thinking[m.id]}` : ""}`}</title>
             <circle r={30} className="halo" />
-            <circle r={22} className="disc" filter="url(#glow)" />
+            <circle r={22} className="disc" />
             <text className="initials" dy="5">
               {initials(m.name)}
             </text>
@@ -108,9 +93,7 @@ export function Hemicycle({ members, session, thinking, lastEvent }: Props) {
               {isThinking ? clip(thinking[m.id] ?? "", 28) : m.roles.slice(0, 2).join(" · ")}
             </text>
             {winner === m.id && (
-              <text className="crown" y={-32}>
-                ◆
-              </text>
+              <circle className="crown" cy={-30} r={4} />
             )}
           </g>
         );

@@ -21,6 +21,8 @@ export class EventBus {
       this.remember(event);
       this.seq = Math.max(this.seq, event.seq);
     }
+    // Deleted sessions keep their audit trail, but their replay history is not needed.
+    for (const [id, list] of this.history) if (list.some((e) => e.type === "session.deleted")) this.history.delete(id);
   }
 
   emit(e: Omit<CouncilEvent, "seq" | "at">): CouncilEvent {
@@ -46,6 +48,11 @@ export class EventBus {
 
   historyFor(sessionId: string): CouncilEvent[] {
     return this.history.get(sessionId) ?? [];
+  }
+
+  /** Drop a session's replay history (the audit log keeps its entries). */
+  forget(sessionId: string): void {
+    this.history.delete(sessionId);
   }
 
   private remember(e: CouncilEvent) {
