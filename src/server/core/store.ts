@@ -1,7 +1,9 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Session, SessionSummary } from "../../shared/types.ts";
 import { now } from "../util/ids.ts";
+
+const SAFE_ID = /^[A-Za-z0-9_-]+$/;
 
 /** One JSON file per session, written atomically (tmp + rename). */
 export class SessionStore {
@@ -42,6 +44,15 @@ export class SessionStore {
     const tmp = file + ".tmp";
     writeFileSync(tmp, JSON.stringify(s, null, 2), "utf8");
     renameSync(tmp, file);
+  }
+
+  /** Forget a session and delete its file. Only ids the store already knows are touched, so a request can never name another path. */
+  remove(id: string): boolean {
+    if (!this.sessions.has(id) || !SAFE_ID.test(id)) return false;
+    this.sessions.delete(id);
+    rmSync(join(this.dir, `${id}.json`), { force: true });
+    rmSync(join(this.dir, `${id}.json.tmp`), { force: true });
+    return true;
   }
 
   has(id: string): boolean {
